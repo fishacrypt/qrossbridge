@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>QROS Bridge</title>
+<meta name="description" content="Bridge QMS between QMS Testnet and Base Sepolia, Arbitrum Sepolia and OP Sepolia.">
+<link rel="icon" href="/dapp/bucketbridge-logo.jpg?v=2">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap">
+<script>try{document.documentElement.setAttribute("data-theme",JSON.parse(localStorage.getItem("tetrixbridge.theme"))||"dark")}catch(e){document.documentElement.setAttribute("data-theme","dark")}</script>
+<link rel="stylesheet" href="/dapp/css/app.css">
+</head>
+<body>
+<header class="hdr">
+  <div class="hdr-in">
+    <a class="brand" href="#/" aria-label="QROS Bridge home">
+      <img
+  class="logo"
+  src="/dapp/bucketbridge-logo.jpg?v=3"
+  alt="QROS"
+>
+      <span class="w">QROS <small>Bridge</small></span>
+    </a>
+    <nav class="nav" id="nav" aria-label="Main">
+      <a href="#/" data-route="home">Home</a>
+      <a href="#/bridge" data-route="bridge">Bridge</a>
+      <a href="#/activity" data-route="activity">Activity</a>
+      <a href="#/networks" data-route="networks">Networks</a>
+      <a href="#/docs" data-route="docs">Docs</a>
+      <div class="menu-wrap">
+        <button id="moreBtn" aria-haspopup="true" aria-expanded="false">More <span data-ico="chev"></span></button>
+        <div class="menu" id="moreMenu" hidden></div>
+      </div>
+    </nav>
+    <div class="hdr-r">
+      <button class="net-pill" id="netPill" hidden></button>
+      <button class="icon theme" id="themeBtn" aria-label="Change theme" title="Theme"></button>
+      <button class="icon" id="settingsBtn" aria-label="Settings" title="Settings"><span data-ico="gear"></span></button>
+      <button class="pill" id="walletBtn">Connect wallet</button>
+      <button class="icon burger" id="burger" aria-label="Open menu" aria-expanded="false"><span data-ico="menu"></span></button>
+    </div>
+  </div>
+</header>
+<div class="drawer" id="drawer" hidden></div>
+
+<main>
+<div class="wrap">
+
+  <!-- HOME -->
+  <section class="view" id="view-home" data-view="home" hidden>
+    <div class="hero">
+      <div>
+        <h1>Move QMS across <em>networks</em>.</h1>
+        <p class="lead">QROS Bridge sends native QMS and WQMS between QMS Testnet and Base Sepolia, Arbitrum Sepolia and OP Sepolia. You see each stage of a transfer as it happens on chain.</p>
+        <div class="ctas">
+          <a class="btn solid" href="#/bridge">Open the bridge <span data-ico="arrow"></span></a>
+          <a class="btn" href="#/docs">How it works</a>
+        </div>
+      </div>
+      <div class="card route-card" id="homeRoutes" aria-label="Popular routes"></div>
+    </div>
+
+    <div class="section">
+      <h2>How a transfer works</h2>
+      <div class="grid g3 steps3">
+        <div class="card flat"><div class="num">1</div><h3>You send</h3><p>Deposit QMS on QMS Testnet, or burn wQMS on another network. One transaction from your wallet.</p></div>
+        <div class="card flat"><div class="num">2</div><h3>The relayer delivers</h3><p>A relayer watches for your transfer, waits for a few block confirmations, then submits the delivery on the destination chain.</p></div>
+        <div class="card flat"><div class="num">3</div><h3>You receive</h3><p>The destination contract marks the transfer as processed exactly once. QROS only shows a transfer as complete after that happens.</p></div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="row wrapr" style="margin-bottom:14px"><h2 style="font-size:20px">Supported networks</h2><a href="#/networks" class="mini">All networks <span data-ico="arrow"></span></a></div>
+      <div class="grid g3" id="homeNets"></div>
+    </div>
+
+    <div class="section">
+      <div class="row wrapr" style="margin-bottom:14px"><h2 style="font-size:20px">Your recent activity</h2><a href="#/activity" class="mini">View all <span data-ico="arrow"></span></a></div>
+      <div id="homeActivity" class="hist"></div>
+    </div>
+
+    <div class="section">
+      <h2>Resources</h2>
+      <div class="grid g3 res" id="homeRes"></div>
+    </div>
+  </section>
+
+  <!-- BRIDGE -->
+  <section class="view" id="view-bridge" data-view="bridge" hidden>
+    <div class="bridge-grid" id="bridgeGrid">
+      <div>
+        <div class="banner ok" id="claimBanner" hidden style="margin-bottom:14px"></div>
+        <div class="card">
+          <div class="card-h"><h3>Bridge</h3><span class="badge acc" id="routeBadge"></span></div>
+          <section id="tab-bridge">
+            <div class="box">
+              <div class="lbl"><span>From</span><button class="sel" id="fromChain" aria-label="Select source network"></button></div>
+              <div class="row">
+                <input class="amt" id="amt" inputmode="decimal" autocomplete="off" placeholder="0" aria-label="Amount to bridge">
+                <button class="sel" id="fromTok" aria-label="Select source token"></button>
+              </div>
+              <div class="sub"><span id="fromBal"></span><button class="max" id="maxBtn" hidden>MAX</button></div>
+            </div>
+            <div class="flipwrap"><button class="flip" id="flip" aria-label="Swap direction"><span data-ico="swap"></span></button></div>
+            <div class="box" style="margin-top:0">
+              <div class="lbl"><span>To (you receive)</span><button class="sel" id="toChain" aria-label="Select destination network"></button></div>
+              <div class="row">
+                <input class="amt" id="out" placeholder="0" readonly tabindex="-1" aria-label="Amount you receive">
+                <button class="sel" id="toTok" aria-label="Select destination token"></button>
+              </div>
+              <div class="sub"><span id="toBal"></span></div>
+            </div>
+
+            <button class="linkbtn" id="recipToggle">Send to a different address</button>
+            <div class="recip" id="recip"><input id="recipIn" placeholder="0x... recipient on destination network" spellcheck="false" autocomplete="off" aria-label="Recipient address"></div>
+
+            <div class="details" id="details" hidden></div>
+            <div class="msg" id="msg" role="status"></div>
+            <button class="primary" id="go" disabled>Enter an amount</button>
+          </section>
+        </div>
+        <div class="prog" id="prog" hidden aria-live="polite"></div>
+        <div id="banner" class="banner" hidden style="margin-top:14px"></div>
+      </div>
+      <aside class="side-note" id="routeInfo" aria-label="Route information"></aside>
+    </div>
+  </section>
+
+  <!-- ACTIVITY -->
+  <section class="view" id="view-activity" data-view="activity" hidden>
+    <div class="page-h"><h1>Activity</h1><p>Transfers you started from this browser with the connected wallet. Status comes from the chains, not from a server.</p></div>
+    <div class="banner ok" id="claimBanner2" hidden style="margin-bottom:14px"></div>
+    <div id="actBody"></div>
+  </section>
+
+  <!-- NETWORKS -->
+  <section class="view" id="view-networks" data-view="networks" hidden>
+    <div class="page-h"><h1>Networks</h1><p>Every network QROS Bridge supports, with live status read directly from each chain's RPC.</p></div>
+    <div class="grid g2" id="netGrid"></div>
+  </section>
+
+  <!-- DOCS -->
+  <section class="view docs" id="view-docs" data-view="docs" hidden>
+    <div class="page-h"><h1>Docs</h1><p>What QROS Bridge does, what to expect, and where the limits are.</p></div>
+    <div id="docBody"></div>
+  </section>
+
+</div>
+</main>
+
+<footer>
+  <div class="ftr-in">
+    <span>Testnet only. Tokens have no monetary value. Not audited.</span>
+    <nav aria-label="Footer" id="ftrNav"></nav>
+  </div>
+</footer>
+
+<dialog id="dlg"><div class="dh"><h3 id="dlgTitle"></h3><button class="dx" id="dlgClose" aria-label="Close"><span data-ico="x"></span></button></div><div class="dbody" id="dlgBody"></div></dialog>
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+/* QMS bridge contracts. Filled in by `npm run deploy` (scripts/apply-config.js). */
+/* BRIDGE_CONFIG_START */
+const BRIDGE = {
+  "hub": {
+    "address": "0x3E853eF91E159Dc69B79b32260948fD878361267",
+    "wqms": "0x9AA510295aC664A3d5A3182a3eFe959DE2B12c34"
+  },
+  "spokes": {
+    "84532": {
+      "bridge": "0x3E853eF91E159Dc69B79b32260948fD878361267",
+      "token": "0x3789B2a0611177bA9795fA9bB7874Ab8E2321313"
+    },
+    "421614": {
+      "bridge": "0x3E853eF91E159Dc69B79b32260948fD878361267",
+      "token": "0x3789B2a0611177bA9795fA9bB7874Ab8E2321313"
+    },
+    "11155420": {
+      "bridge": "0x3E853eF91E159Dc69B79b32260948fD878361267",
+      "token": "0x3789B2a0611177bA9795fA9bB7874Ab8E2321313"
+    }
+  }
+};
+/* BRIDGE_CONFIG_END */
+</script>
+<script src="/dapp/js/core.js"></script>
+<script src="/dapp/js/bridge.js"></script>
+<script src="/dapp/js/exec.js"></script>
+<script src="/dapp/js/track.js"></script>
+<script src="/dapp/js/views.js"></script>
+<script src="/dapp/js/pages.js"></script>
+<script src="/dapp/js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,18 @@
+.env
+.env.*
+!.env.example
+**/.env
+**/.env.*
+!**/.env.example
+
+# Dependencies and local state
+**/node_modules/
+**/relayer-state.json
+.vercel/
+**/.vercel/
+
+# Generated files and local logs
+console.jsonl
+contracts/out/
+contracts/cache/
+*.backup
