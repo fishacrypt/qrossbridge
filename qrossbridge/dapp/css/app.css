@@ -1887,3 +1887,31 @@ footer{border-top:1px solid #e5e5e0}
  .vision-grid{grid-template-columns:1fr}
  .vision-card{min-height:220px}
 }
+
+/* ---------- User-requested overview adjustments ---------- */
+:root,:root[data-theme=light],:root[data-theme=system]{
+ --acc:#0f766e;--acc-ink:#ffffff;--acc-soft:rgba(15,118,110,.09);--acc-line:rgba(15,118,110,.24);
+}
+.hero{display:flex;justify-content:center;align-items:center;text-align:center;min-height:clamp(480px,62vh,650px);padding:72px 0 64px}
+.hero>div:first-child{max-width:800px;width:100%;display:flex;align-items:center;flex-direction:column}
+.hero .eyebrow{justify-content:center;color:#0f766e}
+.hero .eyebrow-dot{background:#0f766e;box-shadow:0 0 0 5px rgba(15,118,110,.12)}
+.hero h1{max-width:850px;margin-inline:auto}
+.hero h1 em{color:#0f766e}
+.hero .lead{max-width:620px;margin-inline:auto}
+.hero .ctas{justify-content:center}
+.hero .btn.solid{background:#0f766e;border-color:#0f766e;color:#fff}
+.hero .btn.solid:hover{background:#115e59;border-color:#115e59}
+.vision-heading h2 em{color:#0f766e}
+.vision-icon{background:rgba(15,118,110,.08);color:#0f766e}
+.vision-no{color:#0f766e}
+.steps3 .num{background:rgba(15,118,110,.09);color:#0f766e}
+@media(max-width:900px){
+ .hero{min-height:0;padding:80px 0 60px}
+ .hero>div:first-child{max-width:720px}
+}
+@media(max-width:680px){
+ .hero{padding:64px 0 48px;min-height:0}
+ .hero h1{font-size:clamp(46px,12vw,62px)}
+ .hero .lead{max-width:100%}
+}
