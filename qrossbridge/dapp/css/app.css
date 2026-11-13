@@ -1915,3 +1915,42 @@ footer{border-top:1px solid #e5e5e0}
  .hero h1{font-size:clamp(46px,12vw,62px)}
  .hero .lead{max-width:100%}
 }
+
+
+/* ---------- Content width correction: secondary pages only ---------- */
+#view-activity,
+#view-networks,
+#view-docs{
+  width:100%;
+  max-width:1040px;
+  margin-left:auto;
+  margin-right:auto;
+  padding-left:clamp(18px,3.2vw,36px);
+  padding-right:clamp(18px,3.2vw,36px);
+  box-sizing:border-box;
+}
+#view-activity #actBody,
+#view-networks #netGrid,
+#view-docs #docBody{
+  width:100%;
+  min-width:0;
+}
+#view-networks #netGrid{
+  grid-template-columns:repeat(2,minmax(0,1fr));
+}
+#view-activity .page-h,
+#view-networks .page-h,
+#view-docs .page-h{
+  max-width:100%;
+}
+@media(max-width:680px){
+  #view-activity,
+  #view-networks,
+  #view-docs{
+    padding-left:16px;
+    padding-right:16px;
+  }
+  #view-networks #netGrid{
+    grid-template-columns:minmax(0,1fr);
+  }
+}
