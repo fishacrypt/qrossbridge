@@ -1,5 +1,5 @@
 'use strict';
-/* QROS Bridge: Networks and Docs pages. Live values are read from the chains; nothing is hardcoded or invented. */
+/* QROS Protocol: Networks and Docs pages. Live values are read from the chains; nothing is hardcoded or invented. */
 
 const NETSTAT={}; // chainId -> live status
 const bridgeChainIds=()=>[QMS.id,...Object.keys(BRIDGE.spokes||{}).map(Number)];
@@ -56,7 +56,8 @@ function renderDocs(){
   const spokes=Object.keys(BRIDGE.spokes||{}).map(Number).map(chainOf).filter(Boolean);
   const limits=info&&info.min!=null?fmt(formatUnits(info.min,18))+' to '+fmt(formatUnits(info.max,18))+' QMS per transfer':'loaded from the bridge contract when you open the bridge page';
   $('docBody').replaceChildren(
-    ...sec('Overview',h('p',{},'QROS Bridge moves QMS between QMS Testnet and '+spokes.map(c=>c.name).join(', ')+'. On QMS Testnet you hold native QMS or WQMS. On every other network you hold wQMS, a token the bridge mints one-to-one against QMS locked on QMS Testnet.')),
+    ...sec('Overview',h('p',{},'QROS currently provides testnet transfers between QMS Testnet and '+spokes.map(c=>c.name).join(', ')+'. On QMS Testnet you hold native QMS or WQMS. On every other network you hold wQMS, a token the bridge mints one-to-one against QMS locked on QMS Testnet.')),
+    ...sec('Where QROS is going',h('p',{},'The next stage is a unified cross-chain liquidity experience: users should be able to start with supported stablecoins on QMS, discover opportunities on connected networks, and authorize a destination DeFi action through QROS. QROS would coordinate liquidity sourcing, destination execution and settlement behind the scenes.'),h('p',{class:'muted',style:'margin-top:10px'},'This is the product direction, not a live feature today. The current release supports the testnet transfer routes described on this page. Cross-chain liquidity advances, DeFi integrations, unified balances and destination execution are not yet enabled.')),
     ...sec('How a transfer works',h('ul',{},
       h('li',{},h('b',{},'QMS to another network: '),'you send native QMS (or WQMS, which is unwrapped) to the hub contract on QMS Testnet. The relayer then mints the same amount of wQMS on the destination network.'),
       h('li',{},h('b',{},'Another network to QMS: '),'you burn wQMS on the source network and choose to receive native QMS or WQMS. The relayer then releases that amount from the hub.'),

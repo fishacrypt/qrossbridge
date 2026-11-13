@@ -5,7 +5,7 @@ const VIEWS=['home','bridge','activity','networks','docs'];
 const THEMES=[['dark','Dark'],['light','Light'],['system','System']];
 const SLIP=[['auto','Auto'],['50','0.5%'],['100','1%'],['300','3%']];
 const SOURCE_URL='https://github.com/fishacrypt/qrossbridge';
-const currentTheme=()=>LS.get('tetrixbridge.theme')||'dark';
+const currentTheme=()=>LS.get('tetrixbridge.theme')||'light';
 
 /* ---------- theme + settings ---------- */
 function applyTheme(t){document.documentElement.setAttribute('data-theme',t);LS.set('tetrixbridge.theme',t);renderThemeBtn()}
@@ -116,7 +116,7 @@ function route(){
   document.querySelectorAll('[data-route]').forEach(a=>{if(a.dataset.route===v)a.setAttribute('aria-current','page');else a.removeAttribute('aria-current')});
   closeMenus();$('burger').replaceChildren(ico('menu'));
   window.scrollTo(0,0);
-  document.title=(v==='home'?'':v[0].toUpperCase()+v.slice(1)+' · ')+'QROS Bridge';
+  document.title=(v==='home'?'':v[0].toUpperCase()+v.slice(1)+' · ')+'QROS Protocol';
   if(v==='bridge'&&qs){
     const p=new URLSearchParams(qs),f=Number(p.get('from')),t=Number(p.get('to'));
     if(chainOf(f)&&chainOf(t)&&f!==t)selectRoute(f,t);
