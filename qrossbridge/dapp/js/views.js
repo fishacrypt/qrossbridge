@@ -7,7 +7,6 @@ function selectRoute(fromId,toId){
   fixTokens();afterChange();
 }
 function refreshViews(){
-  if(currentView==='home')renderHomeActivity();
   if(currentView==='activity')renderActList();
   if(S.openEntry)renderEntryDialog();
 }
