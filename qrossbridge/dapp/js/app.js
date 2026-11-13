@@ -116,7 +116,7 @@ function route(){
   document.querySelectorAll('[data-route]').forEach(a=>{if(a.dataset.route===v)a.setAttribute('aria-current','page');else a.removeAttribute('aria-current')});
   closeMenus();$('burger').replaceChildren(ico('menu'));
   window.scrollTo(0,0);
-  document.title=(v==='home'?'':v[0].toUpperCase()+v.slice(1)+' · ')+'QROS Bridge';
+  document.title=(v==='home'?'':v[0].toUpperCase()+v.slice(1)+' · ')+'QROS Protocol';
   if(v==='bridge'&&qs){
     const p=new URLSearchParams(qs),f=Number(p.get('from')),t=Number(p.get('to'));
     if(chainOf(f)&&chainOf(t)&&f!==t)selectRoute(f,t);
