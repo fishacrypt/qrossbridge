@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>QROS Bridge</title>
-<meta name="description" content="Bridge QMS between QMS Testnet and Base Sepolia, Arbitrum Sepolia and OP Sepolia.">
+<title>QROS — Cross-chain liquidity, connected</title>
+<meta name="description" content="QROS connects QMS liquidity to opportunities across supported networks.">
 <link rel="icon" href="/dapp/bucketbridge-logo.jpg?v=2">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -21,11 +21,11 @@
   src="/dapp/bucketbridge-logo.jpg?v=3"
   alt="QROS"
 >
-      <span class="w">QROS <small>Bridge</small></span>
+      <span class="w">QROS <small>Protocol</small></span>
     </a>
     <nav class="nav" id="nav" aria-label="Main">
-      <a href="#/" data-route="home">Home</a>
-      <a href="#/bridge" data-route="bridge">Bridge</a>
+      <a href="#/" data-route="home">Overview</a>
+      <a href="#/bridge" data-route="bridge">Transfer</a>
       <a href="#/activity" data-route="activity">Activity</a>
       <a href="#/networks" data-route="networks">Networks</a>
       <a href="#/docs" data-route="docs">Docs</a>
@@ -52,18 +52,18 @@
   <section class="view" id="view-home" data-view="home" hidden>
     <div class="hero">
       <div>
-        <h1>Move QMS across <em>networks</em>.</h1>
-        <p class="lead">QROS Bridge sends native QMS and WQMS between QMS Testnet and Base Sepolia, Arbitrum Sepolia and OP Sepolia. You see each stage of a transfer as it happens on chain.</p>
+        <div class="eyebrow"><span class="eyebrow-dot"></span> THE CROSS-CHAIN LIQUIDITY LAYER</div><h1>One balance.<br><em>More possibilities.</em></h1>
+        <p class="lead">Put your QMS liquidity to work across connected networks. QROS is building a simpler way to access, move and deploy stablecoin liquidity—without making users manage every chain in between.</p>
         <div class="ctas">
-          <a class="btn solid" href="#/bridge">Open the bridge <span data-ico="arrow"></span></a>
-          <a class="btn" href="#/docs">How it works</a>
+          <a class="btn solid" href="#/bridge">Explore transfers <span data-ico="arrow"></span></a>
+          <a class="btn" href="#/docs">Discover QROS</a>
         </div>
       </div>
       <div class="card route-card" id="homeRoutes" aria-label="Popular routes"></div>
     </div>
 
     <div class="section">
-      <h2>How a transfer works</h2>
+      <div class="section-kicker">LIVE TESTNET INFRASTRUCTURE</div><h2>Transfers, made transparent.</h2>
       <div class="grid g3 steps3">
         <div class="card flat"><div class="num">1</div><h3>You send</h3><p>Deposit QMS on QMS Testnet, or burn wQMS on another network. One transaction from your wallet.</p></div>
         <div class="card flat"><div class="num">2</div><h3>The relayer delivers</h3><p>A relayer watches for your transfer, waits for a few block confirmations, then submits the delivery on the destination chain.</p></div>
