@@ -1823,3 +1823,67 @@ footer{background:transparent;border-color:var(--line)}
  #actList .hi{padding:14px}
  #docBody>h2{margin-top:24px}
 }
+
+/* ---------- Superior composition refinement: editorial SaaS landing ---------- */
+:root,:root[data-theme=light],:root[data-theme=system]{
+ --bg:#f4f4f2;--card:#fff;--box:#f7f7f5;--box2:#ededeb;--line:#e9e9e6;--line2:#d8d8d3;
+ --text:#161715;--mut:#777a72;--acc:#b9e769;--acc-ink:#171914;--acc-soft:rgba(185,231,105,.18);--acc-line:rgba(122,163,48,.24);
+}
+.hdr{background:rgba(255,255,255,.88);border-bottom:1px solid #ecece8}
+.hdr-in{max-width:1240px;height:76px}
+.brand{font-weight:700}
+.nav{gap:10px;margin-left:auto;margin-right:auto}
+.nav a,.nav button{font-size:13px;color:#64665f}
+.nav a[aria-current=page]{background:#f2f2ef;color:#161715}
+.hdr-r .pill{background:#171815;color:white;border-color:#171815;border-radius:8px}
+main{padding:28px 0 96px}
+.hero{max-width:1240px;margin:0 auto;padding:72px 0 54px;grid-template-columns:minmax(0,1fr) minmax(400px,.95fr);gap:64px}
+.hero h1{font-family:var(--display);font-size:clamp(58px,7vw,86px);line-height:.98;letter-spacing:-.075em;font-weight:600}
+.hero h1 em{color:#7b9f3e}
+.eyebrow{font-size:10px;letter-spacing:.13em;color:#62665b}
+.eyebrow-dot{background:#9fc94d;box-shadow:0 0 0 5px rgba(185,231,105,.2)}
+.lead{font-size:16px;line-height:1.75;max-width:500px;color:#74766f}
+.btn{border-radius:8px;font-weight:600}
+.btn.solid{background:#171815;color:#fff;border-color:#171815}
+.btn:not(.solid){background:#fff;border:1px solid #e4e4df}
+.route-card{background:#fff;border:1px solid #e8e8e4;border-radius:18px;padding:26px;box-shadow:0 20px 60px rgba(22,23,21,.07);min-height:330px}
+.route-card:before{content:"QROS ROUTE OVERVIEW";display:block;font-size:9px;letter-spacing:.15em;color:#85877e;font-weight:700;padding-bottom:18px;border-bottom:1px solid #eee;margin-bottom:14px}
+.route-card .rt{background:#fafaf8;border:1px solid #ededeb;border-radius:11px}
+.value-strip{max-width:1240px;margin:12px auto 0;padding:18px 0;border-top:1px solid #e3e3df;border-bottom:1px solid #e3e3df;justify-content:center;gap:17px;color:#77796f}
+.value-strip span:first-child{font-size:9px}
+.value-strip span:last-child{font-size:10px}
+.chain-divider{color:#c4c5bd}
+.vision-section{max-width:1240px;margin:110px auto 0}
+.vision-heading{align-items:end;margin-bottom:38px}
+.vision-heading h2{font-size:clamp(40px,5vw,62px);font-weight:600;line-height:1.02;letter-spacing:-.075em}
+.vision-heading h2 em{color:#7b9f3e}
+.vision-heading>p{font-size:14px;max-width:360px}
+.vision-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:18px}
+.vision-card{background:#fff;border:1px solid #e9e9e5;border-radius:16px;padding:26px;min-height:270px;box-shadow:0 8px 24px rgba(20,20,18,.025)}
+.vision-icon{background:#f3f4ef;border-radius:11px;color:#24271f}
+.vision-no{color:#81847a;letter-spacing:.12em}
+.vision-card h3{font-size:21px;font-weight:600}
+.vision-card p{color:#74766f;font-size:13px;line-height:1.75}
+.vision-foot{font-size:9px;color:#7f8278}
+.section{max-width:1240px;margin:100px auto 0}
+.section>.section-kicker{margin-bottom:16px}
+.section>h2{font-size:clamp(34px,4vw,48px);font-weight:600;letter-spacing:-.07em}
+.steps3{gap:18px}
+.steps3 .card{background:#fff;border:1px solid #e9e9e5;border-radius:16px;padding:26px}
+.steps3 .num{background:#eef4df;color:#627e2e;border-radius:9px}
+#homeNets>.card,#homeActivity .hi,#homeRes>a{background:#fff;border:1px solid #e9e9e5;border-radius:15px}
+footer{border-top:1px solid #e5e5e0}
+@media(max-width:900px){
+ .hero{grid-template-columns:1fr;gap:34px;padding:48px 0}
+ .route-card{max-width:none}
+ .vision-heading{flex-direction:column;align-items:flex-start}
+}
+@media(max-width:680px){
+ .hdr-in{height:66px}.nav{display:none}
+ .hero{padding:35px 0 30px;gap:28px}
+ .hero h1{font-size:clamp(48px,13vw,64px)}
+ .value-strip{justify-content:flex-start;gap:9px}
+ .vision-section,.section{margin-top:68px}
+ .vision-grid{grid-template-columns:1fr}
+ .vision-card{min-height:220px}
+}
