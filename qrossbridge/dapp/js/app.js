@@ -5,7 +5,7 @@ const VIEWS=['home','bridge','activity','networks','docs'];
 const THEMES=[['dark','Dark'],['light','Light'],['system','System']];
 const SLIP=[['auto','Auto'],['50','0.5%'],['100','1%'],['300','3%']];
 const SOURCE_URL='https://github.com/fishacrypt/qrossbridge';
-const currentTheme=()=>LS.get('tetrixbridge.theme')||'dark';
+const currentTheme=()=>LS.get('tetrixbridge.theme')||'light';
 
 /* ---------- theme + settings ---------- */
 function applyTheme(t){document.documentElement.setAttribute('data-theme',t);LS.set('tetrixbridge.theme',t);renderThemeBtn()}
