@@ -11,6 +11,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap">
 <script>try{document.documentElement.setAttribute("data-theme",JSON.parse(localStorage.getItem("tetrixbridge.theme"))||"dark")}catch(e){document.documentElement.setAttribute("data-theme","dark")}</script>
 <link rel="stylesheet" href="/dapp/css/app.css">
+<link rel="stylesheet" href="/dapp/css/stablecoin-exec.css">
 </head>
 <body>
 <header class="hdr">
@@ -26,6 +27,7 @@
     <nav class="nav" id="nav" aria-label="Main">
       <a href="#/" data-route="home">Home</a>
       <a href="#/bridge" data-route="bridge">Bridge</a>
+      <a href="#/execution" data-route="execution">Execution</a>
       <a href="#/activity" data-route="activity">Activity</a>
       <a href="#/networks" data-route="networks">Networks</a>
       <a href="#/docs" data-route="docs">Docs</a>
@@ -191,6 +193,8 @@ const BRIDGE = {
 <script src="/dapp/js/track.js"></script>
 <script src="/dapp/js/views.js"></script>
 <script src="/dapp/js/pages.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/ethers@6.13.5/dist/ethers.umd.min.js"></script>
+<script src="/dapp/js/stablecoin-exec.js"></script>
 <script src="/dapp/js/app.js"></script>
 </body>
 </html>
