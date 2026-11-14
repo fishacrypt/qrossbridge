@@ -58,7 +58,7 @@ function exPage(){
         h('label',{class:'field',for:'execAmount'},'Amount'),
         h('div',{class:'exec-amount-wrap'},h('input',{id:'execAmount',class:'exec-amount',inputmode:'decimal',placeholder:'0.00',autocomplete:'off'}),h('span',{class:'exec-unit'},'USD')),
         h('div',{class:'exec-balances'},h('span',{id:'execSourceBalance'},'Wallet balance: connect wallet'),h('button',{class:'linkbtn',id:'execMax'},'MAX')),
-        h('div',{class:'exec-preview',id:'execPreview'},h('div',{class:'kv'},h('span',{},'You send'),h('b',{id:'execSendPreview'},'—')),h('div',{class:'kv'},h('span',{},'Destination liquidity'),h('b',{id:'execLiquidity'},'Loading…')),h('div',{class:'kv'},h('span',{},'Protocol fee'),h('b',{id:'execFee'},'Loading…'))),
+        h('div',{class:'exec-preview',id:'execPreview'},h('div',{class:'kv'},h('span',{},'You send'),h('b',{id:'execSendPreview'},'—')),h('div',{class:'kv'},h('span',{},'Estimated Base amount'),h('b',{id:'execReceivePreview'},'—')),h('div',{class:'kv'},h('span',{},'Destination liquidity'),h('b',{id:'execLiquidity'},'Loading…')),h('div',{class:'kv'},h('span',{},'Protocol fee'),h('b',{id:'execFee'},'Loading…'))),
         h('p',{class:'exec-note'},'Strategy ID is the zero-bytes32 demo placeholder. This request does not deposit into an external yield protocol or generate yield.'),
         h('div',{id:'execMsg',class:'exec-message',role:'status'},'Connect your wallet to begin.'),
         h('button',{id:'execSubmit',class:'primary',disabled:true},'Connect wallet')),
@@ -94,6 +94,7 @@ async function exRefreshView(){
   exPage();
   $('execAsset').value=execAsset;
   $('execSendPreview').textContent=execAmount?execAmount+' '+execAsset:'—';
+  $('execReceivePreview').textContent=execAmount&&execRouteEnabled?exFmt((exUnits(execAmount)*BigInt(10000-execFeeBps))/10000n)+' '+execAsset:'—';
   $('execSourceBalance').textContent='Wallet balance: loading…';
   $('execLiquidity').textContent='Loading…';
   try{
@@ -113,6 +114,7 @@ async function exRefreshView(){
 }
 function exUpdatePreview(){
   $('execSendPreview').textContent=execAmount?execAmount+' '+execAsset:'—';
+  $('execReceivePreview').textContent=execAmount&&execRouteEnabled?exFmt((exUnits(execAmount)*BigInt(10000-execFeeBps))/10000n)+' '+execAsset:'—';
   exRoute();
 }
 async function exWaitReceipt(hash){
