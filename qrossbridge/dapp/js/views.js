@@ -7,7 +7,6 @@ function selectRoute(fromId,toId){
   fixTokens();afterChange();
 }
 function refreshViews(){
-  if(currentView==='home')renderHomeActivity();
   if(currentView==='activity')renderActList();
   if(S.openEntry)renderEntryDialog();
 }
@@ -28,37 +27,8 @@ function connectEmpty(text){
 
 /* ---------- home ---------- */
 function renderHome(){
-  // popular routes
-  const rc=$('homeRoutes');
-  rc.replaceChildren(h('div',{class:'card-h'},h('h3',{},'Start a transfer')),
-    ...Object.keys(BRIDGE.spokes||{}).map(id=>{
-      const to=chainOf(Number(id));if(!to)return null;
-      return h('a',{class:'rt',href:'#/bridge',onclick:()=>selectRoute(QMS.id,to.id)},
-        chip(chainOf(QMS.id)),h('span',{class:'n'},h('b',{},'QMS Testnet → '+to.name),h('small',{},'Native QMS or WQMS to wQMS')),ico('arrow'));
-    }),
-    h('p',{class:'muted',style:'font-size:12.5px;margin-top:12px'},'Use the swap control on the bridge page to go the other way.'));
-  // supported networks
-  const nets=[QMS.id,...Object.keys(BRIDGE.spokes||{}).map(Number)].map(chainOf).filter(Boolean);
-  $('homeNets').replaceChildren(...nets.map(c=>h('div',{class:'card flat net-card'},chip(c),
-    h('div',{class:'n'},h('b',{},c.name),h('small',{},'Chain '+c.id+' · '+(c.id===QMS.id?'Hub (native QMS)':'Spoke (wQMS)'))),
-    c.explorer?h('a',{class:'mini',href:c.explorer,target:'_blank',rel:'noopener','aria-label':c.name+' explorer'},ico('ext')):null)));
-  // resources
-  const res=[
-    ['#/docs','Documentation','How transfers, limits and tracking work',null],
-    [QMS.faucet,'QMS Testnet faucet','Get testnet QMS for gas and bridging','ext'],
-    [QMS.explorer,'QMS explorer','Browse QMS Testnet transactions','ext'],
-    ['https://github.com/fishacrypt/qrossbridge','Source code','Contracts, relayer and this app','ext']
-  ];
-  const links=res.map(([href,a,b,ext])=>h('a',{href,...(ext?{target:'_blank',rel:'noopener'}:{})},h('span',{},a,h('br'),h('small',{},b)),ico(ext?'ext':'arrow')));
-  links.push(h('a',{href:'#/bridge',onclick:e=>{e.preventDefault();addQms()}},h('span',{},'Add QMS Testnet',h('br'),h('small',{},'Add the network to your wallet')),ico('wallet')));
-  $('homeRes').replaceChildren(...links);
-  renderHomeActivity();
-}
-function renderHomeActivity(){
-  const el=$('homeActivity');if(!el)return;
-  if(!S.account){el.replaceChildren(connectEmpty('Your recent transfers will appear here.'));return}
-  const list=myEntries().slice(0,3);
-  el.replaceChildren(...(list.length?list.map(entryCard):[h('div',{class:'empty'},h('b',{},'No transfers yet'),'Transfers you start with this wallet show up here.')]));
+  // The overview is intentionally focused on the protocol introduction.
+  // Transfer activity and network details live on their dedicated pages.
 }
 
 /* ---------- activity ---------- */
