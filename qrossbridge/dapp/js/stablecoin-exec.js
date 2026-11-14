@@ -20,7 +20,7 @@ const EXEC_CFG = {
 };
 const EXEC_STATUS = {0:'Not found',1:'Pending',2:'Source settled',3:'Failed',4:'Refunded'};
 const POS_STATUS = {0:'Not reserved',1:'Liquidity reserved',2:'Position active',3:'Position closed',4:'Reservation cancelled'};
-let execAsset='USDC', execAmount='', execBusy=false, execTimer=null;
+let execAsset='USDC', execAmount='', execBusy=false, execTimer=null, execAvailable=0n, execFeeBps=0, execRouteEnabled=false;
 
 function exCall(signature, types=[], values=[]) {
   if (!window.ethers) throw new Error('Execution encoder unavailable. Reload the page and try again.');
@@ -58,7 +58,7 @@ function exPage(){
         h('label',{class:'field',for:'execAmount'},'Amount'),
         h('div',{class:'exec-amount-wrap'},h('input',{id:'execAmount',class:'exec-amount',inputmode:'decimal',placeholder:'0.00',autocomplete:'off'}),h('span',{class:'exec-unit'},'USD')),
         h('div',{class:'exec-balances'},h('span',{id:'execSourceBalance'},'Wallet balance: connect wallet'),h('button',{class:'linkbtn',id:'execMax'},'MAX')),
-        h('div',{class:'exec-preview',id:'execPreview'},h('div',{class:'kv'},h('span',{},'You send'),h('b',{id:'execSendPreview'},'—')),h('div',{class:'kv'},h('span',{},'Destination liquidity'),h('b',{id:'execLiquidity'},'Loading…')),h('div',{class:'kv'},h('span',{},'Protocol fee'),h('b',{},'0% (configured route)'))),
+        h('div',{class:'exec-preview',id:'execPreview'},h('div',{class:'kv'},h('span',{},'You send'),h('b',{id:'execSendPreview'},'—')),h('div',{class:'kv'},h('span',{},'Destination liquidity'),h('b',{id:'execLiquidity'},'Loading…')),h('div',{class:'kv'},h('span',{},'Protocol fee'),h('b',{id:'execFee'},'Loading…'))),
         h('p',{class:'exec-note'},'Strategy ID is the zero-bytes32 demo placeholder. This request does not deposit into an external yield protocol or generate yield.'),
         h('div',{id:'execMsg',class:'exec-message',role:'status'},'Connect your wallet to begin.'),
         h('button',{id:'execSubmit',class:'primary',disabled:true},'Connect wallet')),
@@ -97,10 +97,14 @@ async function exRefreshView(){
   $('execSourceBalance').textContent='Wallet balance: loading…';
   $('execLiquidity').textContent='Loading…';
   try{
-    const dest=EXEC_CFG.destinationAssets[execAsset];
+    const dest=EXEC_CFG.destinationAssets[execAsset],source=EXEC_CFG.sourceAssets[execAsset];
     const [available]=await exRead(EXEC_CFG.destinationChain,EXEC_CFG.vault,exCall('availableLiquidity(address)',['address'],[dest]),['uint256']);
+    const route=await exRead(EXEC_CFG.sourceChain,EXEC_CFG.gateway,exCall('assetRoutes(address)',['address'],[source]),['address','address','uint16','bool']);
+    execAvailable=BigInt(available);execFeeBps=Number(route[2]);execRouteEnabled=Boolean(route[3])&&String(route[0]).toLowerCase()===dest.toLowerCase();
     $('execLiquidity').textContent=exFmt(available)+' '+execAsset+' available';
-  }catch{$('execLiquidity').textContent='Unable to read vault liquidity'}
+    $('execFee').textContent=(execFeeBps/100).toFixed(2)+'%';
+    if(!execRouteEnabled)$('execLiquidity').textContent='Route disabled or destination mismatch';
+  }catch{execAvailable=0n;execRouteEnabled=false;$('execLiquidity').textContent='Unable to verify route/liquidity';$('execFee').textContent='Unavailable'}
   if(S.account){
     try{$('execSourceBalance').textContent='Wallet balance: '+exFmt(await exTokenBalance())+' '+execAsset}
     catch{$('execSourceBalance').textContent='Wallet balance: unavailable'}
@@ -132,6 +136,11 @@ async function exSubmit(){
     const asset=EXEC_CFG.sourceAssets[execAsset];
     const bal=await exTokenBalance();
     if(amount>bal)throw new Error('Insufficient '+execAsset+' balance in your wallet.');
+    const dest=EXEC_CFG.destinationAssets[execAsset];
+    const [available]=await exRead(EXEC_CFG.destinationChain,EXEC_CFG.vault,exCall('availableLiquidity(address)',['address'],[dest]),['uint256']);
+    const route=await exRead(EXEC_CFG.sourceChain,EXEC_CFG.gateway,exCall('assetRoutes(address)',['address'],[asset]),['address','address','uint16','bool']);
+    if(!Boolean(route[3])||String(route[0]).toLowerCase()!==dest.toLowerCase())throw new Error('This stablecoin route is not enabled or does not match the configured destination token.');
+    if(BigInt(available)<amount)throw new Error('Insufficient available '+execAsset+' liquidity on Base Sepolia. Available: '+exFmt(available)+'.');
     const allowance=await exRead(EXEC_CFG.sourceChain,asset,exCall('allowance(address,address)',['address','address'],[S.account,EXEC_CFG.gateway]),['uint256']);
     if(BigInt(allowance[0])<amount){
       exSetMessage('Approve '+execAsset+' in your wallet.','info');$('execSubmit').textContent='Approve token';
