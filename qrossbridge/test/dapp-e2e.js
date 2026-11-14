@@ -202,7 +202,7 @@ const wqmsTok = ev(`chainOf(${HUB_ID}).tokens.find(t=>t.symbol==='WQMS').address
   ok('dapp: history records completed transfers');
 
   // 8. navigation: every page renders, only one is visible, no script errors
-  for (const [hash, id] of [['#/activity', 'activity'], ['#/networks', 'networks'], ['#/docs', 'docs'], ['#/bridge', 'bridge'], ['#/', 'home'], ['#/nope', 'home']]) {
+  for (const [hash, id] of [['#/activity', 'activity'], ['#/networks', 'networks'], ['#/docs', 'docs'], ['#/execution', 'execution'], ['#/bridge', 'bridge'], ['#/', 'home'], ['#/nope', 'home']]) {
     w.location.hash = hash; await sleep(250);
     const visible = [...d.querySelectorAll('[data-view]')].filter(x => !x.hidden).map(x => x.dataset.view);
     assert.deepEqual(visible, [id], hash + ' shows only the ' + id + ' view');
