@@ -120,12 +120,13 @@ svg.i{width:1em;height:1em;flex:none;stroke:currentColor;fill:none;stroke-width:
   text-decoration: none;
 }
 
-.brand small {
-  font-weight: 500;
-  color: var(--mut);
-  font-size: 14px;
-  letter-spacing: -.02em;
-  margin-left: -4px;
+.brand span.w {
+  display: inline-flex;
+  align-items: baseline;
+  gap: .34em;
+  font: inherit;
+  letter-spacing: inherit;
+  color: inherit;
 }
 
 .logo {
@@ -529,7 +530,7 @@ dialog::backdrop{background:rgba(3,4,7,.72);backdrop-filter:blur(3px)}
 @media (max-width:640px){
   .g2{grid-template-columns:minmax(0,1fr)}
   .hdr-in{gap:8px}
-  .brand small{display:none}
+  .brand span.w{display:inline-flex}
   .net-pill .t{display:none}
   .net-pill{padding:0 12px;width:40px;justify-content:center;padding:0}
   .pill{padding:0 12px}
@@ -1731,7 +1732,7 @@ select:focus-visible {
 body{background:var(--bg);color:var(--text);letter-spacing:-.012em}
 .hdr{background:color-mix(in srgb,var(--bg) 92%,transparent);border-bottom:1px solid var(--line);backdrop-filter:blur(14px)}
 .hdr-in{max-width:1320px;height:78px;gap:30px}
-.brand{font-size:20px;letter-spacing:-.055em}.logo{width:38px;height:38px;border-radius:10px}
+.brand{font-size:20px;letter-spacing:-.055em}.brand span.w{font:inherit;letter-spacing:inherit;color:inherit}.logo{width:38px;height:38px;border-radius:10px}
 .nav{gap:7px;margin-left:26px}
 .nav a,.nav button{padding:9px 13px;border-radius:8px;font-size:13px}
 .nav a[aria-current=page]{background:var(--acc-soft);color:var(--text)}
@@ -1805,7 +1806,7 @@ footer{background:transparent;border-color:var(--line)}
  .vision-heading{align-items:flex-start;flex-direction:column}
 }
 @media(max-width:680px){
- .hdr-in{height:66px;gap:10px}.brand small{display:none}.nav{display:none}
+ .hdr-in{height:66px;gap:10px}.brand span.w{display:inline-flex}.nav{display:none}
  .wrap{padding-inline:17px}main{padding-top:20px}
  .hero{padding:24px 0 30px;gap:24px}
  .hero h1{font-size:clamp(46px,12vw,60px)}
