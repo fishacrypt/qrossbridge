@@ -1,20 +1,10 @@
 'use strict';
-/* QROS Bridge: app shell. Router, header, navigation, theme, settings and startup. */
+/* QROS Bridge: app shell. Router, header, navigation, settings and startup. */
 
 const VIEWS=['home','bridge','execution','activity','networks','docs'];
-const THEMES=[['dark','Dark'],['light','Light'],['system','System']];
 const SLIP=[['auto','Auto'],['50','0.5%'],['100','1%'],['300','3%']];
 const SOURCE_URL='https://github.com/fishacrypt/qrossbridge';
-const currentTheme=()=>LS.get('tetrixbridge.theme')||'light';
-
-/* ---------- theme + settings ---------- */
-function applyTheme(t){document.documentElement.setAttribute('data-theme',t);LS.set('tetrixbridge.theme',t);renderThemeBtn()}
-function cycleTheme(){const i=THEMES.findIndex(x=>x[0]===currentTheme());applyTheme(THEMES[(i+1)%THEMES.length][0])}
-function renderThemeBtn(){
-  const t=currentTheme(),b=$('themeBtn');
-  b.replaceChildren(ico(t==='light'?'sun':t==='system'?'monitor':'moon'));
-  b.setAttribute('aria-label','Theme: '+t+'. Click to change.');b.title='Theme: '+t;
-}
+/* ---------- settings ---------- */
 function setSlip(v){S.slip=v;LS.set('tetrixbridge.slip',v);scheduleQuote()}
 function openSettings(){
   const body=h('div',{});
@@ -32,9 +22,8 @@ function openSettings(){
       h('p',{class:'muted',style:'font-size:12.5px;margin:0 0 8px'},'Applies to routes between non-QMS networks. QMS transfers are always one-to-one.'),
       seg(SLIP,S.slip,v=>{setSlip(v);draw()}),
       h('div',{style:'margin-top:8px'},inp),
-      S.slip!=='auto'&&+S.slip>500?h('p',{style:'color:var(--warn);font-size:12.5px;margin:6px 0 0'},'High slippage can lead to an unfavourable rate.'):null,
-      h('label',{class:'field',style:'margin-top:16px'},'Theme'),
-      seg(THEMES,currentTheme(),v=>{applyTheme(v);draw()}));
+      S.slip!=='auto'&&+S.slip>500?h('p',{style:'color:var(--warn);font-size:12.5px;margin:6px 0 0'},'High slippage can lead to an unfavourable rate.'):null
+    );
   };
   draw();openDialog('Settings',body);
 }
@@ -63,9 +52,8 @@ function buildChrome(){
     h('a',{href:QMS.explorer,target:'_blank',rel:'noopener'},'Explorer'),h('a',{href:SOURCE_URL,target:'_blank',rel:'noopener'},'Source'));
   const dr=$('drawer');
   dr.replaceChildren(...VIEWS.map(v=>h('a',{href:'#/'+(v==='home'?'':v),'data-route':v},v[0].toUpperCase()+v.slice(1))),
-    h('hr'),...moreItems().map(it=>itemEl(it,closeMenus)),
-    h('hr'),h('button',{class:'dl',onclick:cycleTheme},ico('moon'),'Change theme'));
-  renderThemeBtn();
+    h('hr'),...moreItems().map(it=>itemEl(it,closeMenus))
+  );
 }
 function closeMenus(){
   $('moreMenu').hidden=true;$('moreBtn').setAttribute('aria-expanded','false');
@@ -125,13 +113,13 @@ function route(){
 }
 function enterView(v){
   if(v==='home')renderHome();
-  else if(v==='bridge'){renderRouteInfo();refreshRouteInfo();loadClaimable();renderBanner()}
+  else if(v==='bridge'){renderRouteInfo();refreshRouteInfo();loadClaimable()}
   else if(v==='execution'){renderExecutionPage()}
   else if(v==='activity'){renderActivity();loadClaimable();trackAll()}
   else if(v==='networks'){refreshNetStatus()}
   else if(v==='docs'){renderDocs();loadBridgeInfo(QMS.id).then(()=>{if(currentView==='docs')renderDocs()}).catch(()=>{})}
 }
-function renderAll(){renderSides();renderBanner();renderQuote();renderWalletBtn();refreshViews();if(currentView==='bridge')renderRouteInfo();if(currentView==='execution'&&typeof exRefreshView==='function')exRefreshView()}
+function renderAll(){renderSides();renderQuote();renderWalletBtn();refreshViews();if(currentView==='bridge')renderRouteInfo();if(currentView==='execution'&&typeof exRefreshView==='function')exRefreshView()}
 
 /* resume the most recent unfinished transfer after a refresh */
 function resumeLive(){
@@ -151,7 +139,6 @@ $('flip').onclick=flip;
 $('walletBtn').onclick=()=>S.account?walletMenu():connect();
 $('netPill').onclick=pickWalletNetwork;
 $('settingsBtn').onclick=openSettings;
-$('themeBtn').onclick=cycleTheme;
 $('moreBtn').onclick=toggleMore;
 $('burger').onclick=toggleDrawer;
 $('dlgClose').onclick=()=>$('dlg').close();

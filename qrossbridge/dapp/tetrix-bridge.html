@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap">
-<script>try{document.documentElement.setAttribute("data-theme",JSON.parse(localStorage.getItem("tetrixbridge.theme"))||"light")}catch(e){document.documentElement.setAttribute("data-theme","light")}</script>
+<script>document.documentElement.setAttribute("data-theme","light")</script>
 <link rel="stylesheet" href="/dapp/css/app.css">
 <link rel="stylesheet" href="/dapp/css/stablecoin-exec.css">
 </head>
@@ -38,7 +38,6 @@
     </nav>
     <div class="hdr-r">
       <button class="net-pill" id="netPill" hidden></button>
-      <button class="icon theme" id="themeBtn" aria-label="Change theme" title="Theme"></button>
       <button class="icon" id="settingsBtn" aria-label="Settings" title="Settings"><span data-ico="gear"></span></button>
       <button class="pill" id="walletBtn">Connect wallet</button>
       <button class="icon burger" id="burger" aria-label="Open menu" aria-expanded="false"><span data-ico="menu"></span></button>
@@ -94,7 +93,7 @@
       <div>
         <div class="banner ok" id="claimBanner" hidden style="margin-bottom:14px"></div>
         <div class="card">
-          <div class="card-h"><h3>Bridge</h3><span class="badge acc" id="routeBadge"></span></div>
+          <div class="card-h"><h3>Bridge</h3></div>
           <section id="tab-bridge">
             <div class="box">
               <div class="lbl"><span>From</span><button class="sel" id="fromChain" aria-label="Select source network"></button></div>
@@ -123,7 +122,6 @@
           </section>
         </div>
         <div class="prog" id="prog" hidden aria-live="polite"></div>
-        <div id="banner" class="banner" hidden style="margin-top:14px"></div>
       </div>
       <aside class="side-note" id="routeInfo" aria-label="Route information"></aside>
     </div>
@@ -131,7 +129,7 @@
 
   <!-- ACTIVITY -->
   <section class="view" id="view-activity" data-view="activity" hidden>
-    <div class="page-h"><h1>Activity</h1><p>Transfers you started from this browser with the connected wallet. Status comes from the chains, not from a server.</p></div>
+    <div class="page-h"><h1>Activity</h1></div>
     <div class="banner ok" id="claimBanner2" hidden style="margin-bottom:14px"></div>
     <div id="actBody"></div>
   </section>

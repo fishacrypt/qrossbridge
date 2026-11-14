@@ -43,10 +43,10 @@ function exPage(){
   if($('view-execution'))return;
   const section=h('section',{class:'view exec-view',id:'view-execution','data-view':'execution',hidden:true});
   section.append(
-    h('div',{class:'page-h'},h('h1',{},'Stablecoin execution'),h('p',{},'Move stablecoins from QMS Testnet to prefunded liquidity on Base Sepolia. This is a separate testnet flow; it does not change native QMS bridging.')),
+    h('div',{class:'page-h'},h('h1',{},'Stablecoin execution'),h('p',{},'Move stablecoins without limits')),
     h('div',{class:'exec-layout'},
       h('div',{class:'card exec-card'},
-        h('div',{class:'card-h'},h('h3',{},'Create execution request'),h('span',{class:'badge acc'},'QMS → Base')),
+        h('div',{class:'card-h'},h('h3',{},'Create execution request')),
         h('div',{class:'exec-route'},
           h('div',{class:'exec-chain'},h('span',{class:'exec-kicker'},'FROM'),h('b',{},'QMS Testnet'),h('small',{},'Chain 19480')),
           ico('arrow'),
@@ -59,8 +59,7 @@ function exPage(){
         h('div',{class:'exec-amount-wrap'},h('input',{id:'execAmount',class:'exec-amount',inputmode:'decimal',placeholder:'0.00',autocomplete:'off'}),h('span',{class:'exec-unit'},'USD')),
         h('div',{class:'exec-balances'},h('span',{id:'execSourceBalance'},'Wallet balance: connect wallet'),h('button',{class:'linkbtn',id:'execMax'},'MAX')),
         h('div',{class:'exec-preview',id:'execPreview'},h('div',{class:'kv'},h('span',{},'You send'),h('b',{id:'execSendPreview'},'—')),h('div',{class:'kv'},h('span',{},'Estimated Base amount'),h('b',{id:'execReceivePreview'},'—')),h('div',{class:'kv'},h('span',{},'Destination liquidity'),h('b',{id:'execLiquidity'},'Loading…')),h('div',{class:'kv'},h('span',{},'Protocol fee'),h('b',{id:'execFee'},'Loading…'))),
-        h('p',{class:'exec-note'},'Strategy ID is the zero-bytes32 demo placeholder. This request does not deposit into an external yield protocol or generate yield.'),
-        h('div',{id:'execMsg',class:'exec-message',role:'status'},'Connect your wallet to begin.'),
+        h('div',{id:'execMsg',class:'exec-message',role:'status'}),
         h('button',{id:'execSubmit',class:'primary',disabled:true},'Connect wallet')),
       h('aside',{class:'card exec-side'},
         h('h3',{},'How execution works'),
@@ -69,7 +68,7 @@ function exPage(){
           h('li',{},h('b',{},'Request'),h('span',{},'Submit the request on QMS Testnet.')),
           h('li',{},h('b',{},'Reserve'),h('span',{},'The separate execution worker reserves matching Base liquidity.')),
           h('li',{},h('b',{},'Settle and activate'),h('span',{},'The worker settles the source and activates your destination position.'))),
-        h('p',{class:'exec-warning'},'Testnet only. Transactions require wallet approval and QMS gas. Liquidity is finite; requests may remain pending if the worker is offline or liquidity is unavailable.'))),
+      )),
     h('div',{class:'section exec-history-section'},h('div',{class:'row wrapr'},h('h2',{},'Your execution requests'),h('button',{class:'mini',id:'execRefresh'},'Refresh status')),h('div',{id:'execHistory',class:'exec-history'},h('div',{class:'empty'},'No execution requests from this browser yet.')))
   );
   section.hidden=currentView!=='execution';
