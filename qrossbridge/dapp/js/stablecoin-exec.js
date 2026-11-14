@@ -72,6 +72,7 @@ function exPage(){
         h('p',{class:'exec-warning'},'Testnet only. Transactions require wallet approval and QMS gas. Liquidity is finite; requests may remain pending if the worker is offline or liquidity is unavailable.'))),
     h('div',{class:'section exec-history-section'},h('div',{class:'row wrapr'},h('h2',{},'Your execution requests'),h('button',{class:'mini',id:'execRefresh'},'Refresh status')),h('div',{id:'execHistory',class:'exec-history'},h('div',{class:'empty'},'No execution requests from this browser yet.')))
   );
+  section.hidden=currentView!=='execution';
   $('view-home').parentElement.append(section);
   $('execAsset').addEventListener('change',e=>{execAsset=e.target.value;exRefreshView()});
   $('execAmount').addEventListener('input',e=>{execAmount=e.target.value.replace(',','.').replace(/[^\d.]/g,'');e.target.value=execAmount;exUpdatePreview()});
@@ -167,8 +168,8 @@ async function exGetRequest(item){
     if(!log)return {label:'Confirmed · event unavailable',detail:'Check the QMS transaction'};
     item.requestId=log.topics[1];exSave(exHistory().map(x=>x.hash===item.hash?item:x));
   }
-  const [request]=await exRead(EXEC_CFG.sourceChain,EXEC_CFG.gateway,exCall('requests(bytes32)',['bytes32'],[item.requestId]),['address','address','address','address','uint256','uint256','bytes32','uint8']);
-  const [position]=await exRead(EXEC_CFG.destinationChain,EXEC_CFG.vault,exCall('positions(bytes32)',['bytes32'],[item.requestId]),['address','address','uint256','bytes32','uint8']);
+  const request=await exRead(EXEC_CFG.sourceChain,EXEC_CFG.gateway,exCall('requests(bytes32)',['bytes32'],[item.requestId]),['address','address','address','address','uint256','uint256','bytes32','uint8']);
+  const position=await exRead(EXEC_CFG.destinationChain,EXEC_CFG.vault,exCall('positions(bytes32)',['bytes32'],[item.requestId]),['address','address','uint256','bytes32','uint8']);
   const gatewayStatus=Number(request[7]),positionStatus=Number(position[4]);
   let label=EXEC_STATUS[gatewayStatus]||'Unknown';
   if(gatewayStatus===2&&positionStatus===2)label='Complete · position active';
