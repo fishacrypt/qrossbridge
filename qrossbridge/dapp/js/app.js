@@ -1,11 +1,9 @@
 'use strict';
-/* QROS Bridge: app shell. Router, header, navigation, theme, settings and startup. */
+/* QROS Bridge: app shell. Router, header, navigation, settings and startup. */
 
 const VIEWS=['home','bridge','execution','activity','networks','docs'];
 const SLIP=[['auto','Auto'],['50','0.5%'],['100','1%'],['300','3%']];
 const SOURCE_URL='https://github.com/fishacrypt/qrossbridge';
-const currentTheme=()=> 'light';
-
 /* ---------- settings ---------- */
 function setSlip(v){S.slip=v;LS.set('tetrixbridge.slip',v);scheduleQuote()}
 function openSettings(){
@@ -24,8 +22,8 @@ function openSettings(){
       h('p',{class:'muted',style:'font-size:12.5px;margin:0 0 8px'},'Applies to routes between non-QMS networks. QMS transfers are always one-to-one.'),
       seg(SLIP,S.slip,v=>{setSlip(v);draw()}),
       h('div',{style:'margin-top:8px'},inp),
-      S.slip!=='auto'&&+S.slip>500?h('p',{style:'color:var(--warn);font-size:12.5px;margin:6px 0 0'},'High slippage can lead to an unfavourable rate.'):null,
-      );
+      S.slip!=='auto'&&+S.slip>500?h('p',{style:'color:var(--warn);font-size:12.5px;margin:6px 0 0'},'High slippage can lead to an unfavourable rate.'):null
+    );
   };
   draw();openDialog('Settings',body);
 }
@@ -54,8 +52,8 @@ function buildChrome(){
     h('a',{href:QMS.explorer,target:'_blank',rel:'noopener'},'Explorer'),h('a',{href:SOURCE_URL,target:'_blank',rel:'noopener'},'Source'));
   const dr=$('drawer');
   dr.replaceChildren(...VIEWS.map(v=>h('a',{href:'#/'+(v==='home'?'':v),'data-route':v},v[0].toUpperCase()+v.slice(1))),
-    h('hr'),...moreItems().map(it=>itemEl(it,closeMenus)),
-    );
+    h('hr'),...moreItems().map(it=>itemEl(it,closeMenus))
+  );
 }
 function closeMenus(){
   $('moreMenu').hidden=true;$('moreBtn').setAttribute('aria-expanded','false');
