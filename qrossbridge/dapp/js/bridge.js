@@ -240,34 +240,22 @@ function renderRouteInfo(){
 /* ---------- pickers ---------- */
 function pickChain(side){
   const body = h('div',{});
-  const supported = [];
-  const unavailable = [];
-  for (const c of S.chains.values()){
-    (SUPPORTED_CHAIN_IDS.has(c.id) ? supported : unavailable).push(c);
+  const supported = [...S.chains.values()]
+    .filter(c=>SUPPORTED_CHAIN_IDS.has(c.id))
+    .filter(c=>c.id===QMS.id || (BRIDGE.spokes&&!!BRIDGE.spokes[c.id]));
+  for (const c of supported){
+    body.append(h('button',{
+      class:'li',
+      type:'button',
+      onclick:()=>{
+        $('dlg').close();
+        setChain(side,c.id);
+      }
+    },
+      chip(c),
+      h('span',{class:'n'},h('b',{},c.name),h('small',{},'Chain '+c.id))
+    ));
   }
-  function addSection(title, chains, isUnavailable){
-    if (!chains.length) return;
-    body.append(h('div',{class:'network-section'},title));
-    for (const c of chains){
-      const button = h('button',{
-        class: 'li' + (isUnavailable ? ' unavailable' : ''),
-        type: 'button',
-        ...(isUnavailable
-          ? {disabled:true,'aria-disabled':'true'}
-          : {onclick:()=>{
-              $('dlg').close();
-              setChain(side,c.id);
-            }})
-      },
-        chip(c),
-        h('span',{class:'n'},h('b',{},c.name),h('small',{},'Chain '+c.id)),
-        ...(isUnavailable ? [h('span',{class:'route-status'},'Unavailable')] : [])
-      );
-      body.append(button);
-    }
-  }
-  addSection('Supported',supported,false);
-  addSection('Unavailable routes',unavailable,true);
   openDialog(side === 'from' ? 'From network' : 'To network', body);
 }
 function setChain(side,id){
