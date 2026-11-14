@@ -139,18 +139,7 @@ function renderSides(){
   $('toBal').textContent=S.account?(tb==null?'Balance: —':'Balance: '+fmt(formatUnits(tb,tt.decimals))+' '+tt.symbol):'';
   $('maxBtn').hidden=!(S.account&&fb);
   const k=routeKind();
-  $('routeBadge').textContent=k==='own'?'QMS bridge':k==='relay'?'Network route':'Unavailable';
-  $('routeBadge').className='badge '+(k==='blocked'?'warn':'acc');
   renderWalletBtn();
-}
-function renderBanner(){
-  const el=$('banner');
-  el.hidden=false;el.className='banner';el.replaceChildren(
-    h('div',{style:'margin-bottom:8px;font-weight:600;color:var(--text)'},'Need QMS Testnet?'),
-    h('div',{class:'acts',style:'margin-top:0'},
-      h('button',{class:'mini',onclick:addQms},ico('wallet'),'Add QMS Testnet to wallet'),
-      h('a',{class:'mini',href:QMS.faucet,target:'_blank',rel:'noopener'},ico('drop'),'Faucet'),
-      h('a',{class:'mini',href:QMS.explorer,target:'_blank',rel:'noopener'},ico('ext'),'Explorer')));
 }
 /* Typical delivery time, measured from this browser's own completed transfers on the same route. */
 function lastTook(){
@@ -245,12 +234,6 @@ function renderRouteInfo(){
   card.push(h('div',{class:'card flat'},h('div',{class:'card-h'},h('h3',{},'Route')),rows));
   if(k==='own'&&((S.info[fc.id]&&S.info[fc.id].paused)||(S.info[tc.id]&&S.info[tc.id].paused)))
     card.push(h('div',{class:'banner warn'},'One of the bridge contracts on this route is paused. New transfers may fail, and deliveries wait until it is resumed.'));
-  card.push(h('div',{class:'card flat'},h('div',{class:'card-h'},h('h3',{},'Good to know')),
-    h('ul',{class:'muted',style:'margin:0;padding-left:18px;font-size:13.5px;line-height:1.7'},
-      h('li',{},'Testnet only. Tokens have no monetary value.'),
-      h('li',{},'You can close this tab after sending. Track the transfer any time in Activity.'),
-      h('li',{},'A transfer is complete only when the destination chain has processed it.'),
-      h('li',{},'The relayer is a single operator in this deployment. Delivery can be delayed if it is offline.'))));
   el.replaceChildren(...card);
 }
 
