@@ -57,7 +57,7 @@ function renderDocs(){
   const limits=info&&info.min!=null?fmt(formatUnits(info.min,18))+' to '+fmt(formatUnits(info.max,18))+' QMS per transfer':'loaded from the bridge contract when you open the bridge page';
   $('docBody').replaceChildren(
     ...sec('Overview',h('p',{},'QROS currently provides testnet transfers between QMS Testnet and '+spokes.map(c=>c.name).join(', ')+'. On QMS Testnet you hold native QMS or WQMS. On every other network you hold wQMS, a token the bridge mints one-to-one against QMS locked on QMS Testnet.')),
-    ...sec('Where QROS is going',h('p',{},'The next stage is a unified cross-chain liquidity experience: users should be able to start with supported stablecoins on QMS, discover opportunities on connected networks, and authorize a destination DeFi action through QROS. QROS would coordinate liquidity sourcing, destination execution and settlement behind the scenes.'),h('p',{class:'muted',style:'margin-top:10px'},'This is the product direction, not a live feature today. The current release supports the testnet transfer routes described on this page. Cross-chain liquidity advances, DeFi integrations, unified balances and destination execution are not yet enabled.')),
+    ...sec('Where QROS is going',h('p',{},'The next stage is a unified cross-chain liquidity experience: users should be able to start with supported stablecoins on QMS, discover opportunities on connected networks, and authorize a destination DeFi action through QROS. QROS would coordinate liquidity sourcing, destination execution and settlement behind the scenes.'),h('p',{class:'muted',style:'margin-top:10px'},'The current release includes a limited QMS Testnet to Base Sepolia stablecoin execution flow. Broader unified balances, cross-chain liquidity routing and external DeFi integrations remain roadmap items.')),
     ...sec('How a transfer works',h('ul',{},
       h('li',{},h('b',{},'QMS to another network: '),'you send native QMS (or WQMS, which is unwrapped) to the hub contract on QMS Testnet. The relayer then mints the same amount of wQMS on the destination network.'),
       h('li',{},h('b',{},'Another network to QMS: '),'you burn wQMS on the source network and choose to receive native QMS or WQMS. The relayer then releases that amount from the hub.'),
@@ -73,6 +73,13 @@ function renderDocs(){
       h('li',{},'You pay network gas on the source network. The relayer pays gas on the destination network.'),
       h('li',{},'Current limits: '+limits+'.'),
       h('li',{},'Routes between two non-QMS networks come with a quote that lists its own fees and estimated time.'))),
+    ...sec('Stablecoin execution (testnet)',h('p',{},'The Execution page provides a separate QMS Testnet to Base Sepolia flow for QMS USDC and QMS USDT. It reads the configured token route and available destination liquidity from QrosIntentGateway on QMS and QrosLiquidityVault on Base Sepolia before asking for wallet approval.')),
+    ...sec('Execution status and limitations',h('ul',{},
+      h('li',{},'Pending means the QMS request was submitted and is waiting for the separate execution worker to reserve Base liquidity.'),
+      h('li',{},'Source settled means the gateway transferred the source stablecoin to the configured liquidity provider. The destination position may still be activating.'),
+      h('li',{},'Complete is shown only when the destination vault reports an active position for the same request ID.'),
+      h('li',{},'A failed request can be refunded by its original wallet using the gateway refund function.'),
+      h('li',{},'The current strategy ID is a zero-bytes32 demo placeholder. This MVP does not integrate an external yield protocol and does not generate yield.'))),
     ...sec('If something looks stuck',h('ul',{},
       h('li',{},'Open Activity and use Check again on the transfer. Status is read from the chains, so it is always current.'),
       h('li',{},'On the Networks page, a relayer gas balance of zero on the destination network means deliveries there will wait until it is topped up.'),
