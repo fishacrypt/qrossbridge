@@ -1,0 +1,25 @@
+{
+  "chainId": 84532,
+  "network": "Base Sepolia",
+  "deployedAt": "2026-11-14T08:08:32.497Z",
+  "deployer": "0x28a3D0cD55f95F7153577cc53303E0Fa9d5cD718",
+  "owner": "0xEae9a255D6AcB4994f335AE3B92ECc421F03ad0d",
+  "assets": {
+    "USDC": {
+      "name": "USDC",
+      "symbol": "USDC",
+      "decimals": 6,
+      "address": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+      "issuer": "Circle"
+    },
+    "USDT": {
+      "name": "QROS Test USDT",
+      "symbol": "USDT",
+      "decimals": 6,
+      "address": "0x9Bb95Ad4f02266C44728e54CEe8ab8E70aAe2683",
+      "issuer": "QROS test token",
+      "transactionHash": "0xea09da01524eb79ebf934579882dc469de0bddef3d1699f62c1684d05a001b90",
+      "deploymentBlock": 58609208
+    }
+  }
+}

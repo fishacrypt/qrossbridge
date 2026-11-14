@@ -1,0 +1,19 @@
+{
+  "qmsChainId": 19480,
+  "destinationChainId": 84532,
+  "owner": "0x28a3D0cD55f95F7153577cc53303E0Fa9d5cD718",
+  "relayer": "0x2DB5F27BCC66f5627b53487be544F02a94B5fD54",
+  "deployedAt": "2026-11-14T12:36:43.473Z",
+  "gateway": {
+    "address": "0x9Bb95Ad4f02266C44728e54CEe8ab8E70aAe2683",
+    "transactionHash": "0x65a3e0b7c030c0262a5af6f7408082d8e26d3ea9275171a8ac1a3bcad4ed9a96",
+    "blockNumber": 350722
+  },
+  "qmsStartBlock": 350722,
+  "vault": {
+    "address": "0x4beA4C50Fa0b38F2951a169a19DD73116AD8d568",
+    "transactionHash": "0xefe42ebd516303d1be18cd7ee08096a9dc210b74197afe0d17db280596177482",
+    "blockNumber": 58689780
+  },
+  "baseStartBlock": 58689780
+}

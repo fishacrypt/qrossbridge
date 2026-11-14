@@ -8,3 +8,6 @@ coverage/
 Thumbs.db
 
 relayer-state.json
+
+execution-relayer-state.json
+
