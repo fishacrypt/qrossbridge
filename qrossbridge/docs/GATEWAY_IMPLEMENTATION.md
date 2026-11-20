@@ -8,7 +8,7 @@ This document describes the implementation modules on `qros-unified-gateway-arch
 - `QrosTransferCoordinator.sol`: creates user-scoped outbound transfer intents, reserves the user's ledger balance and invokes an approved settlement adapter.
 - `QrosExecutionRouter.sol`: EIP-712 signed execution intents. The signature binds user, asset, amount, strategy ID, adapter-data hash, nonce and deadline. Execution is atomic through the ledger.
 - `QrosPositionRegistry.sol`: records external position metadata and lifecycle status.
-- `adapters/UniswapV3LiquidityAdapter.sol`: single-input-token flow that can swap part of the input through Uniswap V3 SwapRouter, mint a V3 position through NonfungiblePositionManager, register it and transfer the NFT to the user's address.
+- `adapters/UniswapV3LiquidityAdapter.sol`: single-input-token flow that can swap part of the input through Uniswap V3 SwapRouter, mint a V3 position through NonfungiblePositionManager, register it and transfer the NFT to the user's address. It also supports user-approved fee collection, partial liquidity reduction and full close/burn.
 - `interfaces/IQrosExecutionAdapter.sol` and `interfaces/IQrosSettlementAdapter.sol`: protocol boundaries for replaceable adapters.
 
 ## Execution lifecycle
@@ -24,6 +24,16 @@ This document describes the implementation modules on `qros-unified-gateway-arch
 The adapter data is ABI encoding of `UniswapV3LiquidityAdapter.Params`:
 `(token0, token1, poolFee, swapFee, swapAmount, minSwapOut, tickLower, tickUpper, amount0Min, amount1Min, deadline)`.
 
+## Position lifecycle
+
+The position NFT is transferred to the user's wallet after minting. To use the adapter's management functions, the user must explicitly approve the adapter for that specific NFT (or grant operator approval) in the Uniswap V3 Position Manager.
+
+- `collectFees(positionId, deadline)`: collects currently owed token0/token1 directly to the user.
+- `reduceLiquidity(positionId, liquidityToRemove, amount0Min, amount1Min, deadline)`: decreases the selected liquidity, collects the resulting tokens and accrued fees directly to the user, and updates the registry's remaining liquidity.
+- `closePosition(positionId, amount0Min, amount1Min, deadline)`: removes all remaining liquidity, collects proceeds and fees to the user, burns the now-empty NFT and marks the registry record closed.
+
+The user remains the NFT owner throughout. These functions do not route proceeds back into the Gateway ledger; the tokens are delivered to the user's wallet. A later iteration can add an explicit, separately authorized "return proceeds to Gateway" option.
+
 ## Required configuration
 
 - Deploy the ledger.
@@ -38,7 +48,7 @@ The adapter data is ABI encoding of `UniswapV3LiquidityAdapter.Params`:
 
 ## Important limitations
 
-- The Uniswap adapter implements position opening, not full position close, fee collection, partial withdrawal or returned-asset accounting. These are required before the lifecycle can be considered complete.
+- Position management functions are implemented, but still require tests against the canonical Uniswap V3 contracts. Proceeds are currently delivered directly to the user's wallet, not reconciled back into Gateway balance buckets.
 - The position registry records NFT metadata; it is not a valuation oracle and does not calculate current USD value, fees earned or impermanent loss.
 - The ledger's `deployed` bucket is an informational principal record, not a spendable token balance or redeemable claim.
 - The current execution adapter is configured by the ledger owner. Production needs a multisig/timelock, narrowly scoped roles, emergency controls and independent security review.
