@@ -27,23 +27,24 @@
     try{
       const c=cfg(),items=Array.isArray(c.assets)?c.assets:[];
       renderAssets(items);
-      if(!window.S||!S.account){status('Connect wallet to view balances','idle');set('gatewayOwner','Wallet not connected');return}
+      if(typeof S==='undefined'||!S.account||!S.provider){status('Connect wallet to view balances','idle');set('gatewayOwner','Wallet not connected');return}
       set('gatewayOwner',S.account);
       if(!c.ledger||!ethers.isAddress(c.ledger)){status('Gateway contract not configured','idle');set('gatewayTotal','—');return}
       if(!items.length){status('Asset configuration required','idle');return}
       status('Reading Gateway ledger…','loading');
       const provider=new ethers.BrowserProvider(S.provider);
       const ledger=new ethers.Contract(c.ledger,ABI,provider);
-      let totals=[0n,0n,0n,0n];
+      let firstBalances=null;
       for(const a of items){
         if(!ethers.isAddress(a.address))continue;
         const b=await ledger.getBalance(S.account,a.address);
         const vals=[b.available,b.inTransit,b.reserved,b.deployed];
-        totals=totals.map((x,i)=>x+BigInt(vals[i]));
+        if(items.length===1)firstBalances=vals;
         const row=$g('gatewayAssets').querySelector('[data-asset="'+a.address.toLowerCase()+'"]');
         if(row)row.querySelectorAll('[data-balance]').forEach((el,i)=>el.textContent=fmt(vals[i],Number(a.decimals??6))+' '+(a.symbol||''));
       }
       set('gatewayTotal',items.length+' configured assets');
+      if(items.length===1&&firstBalances){['available','inTransit','reserved','deployed'].forEach((k,i)=>{const el=document.querySelector('[data-gateway-metric="'+k+'"]');if(el)el.textContent=fmt(firstBalances[i],Number(items[0].decimals??6))+' '+(items[0].symbol||'')})}
       status('Ledger connected · read-only','ready');
     }catch(e){status('Unable to read Gateway ledger','error');const m=$g('gatewayMessage');if(m)m.textContent=e?.shortMessage||e?.message||'RPC read failed'}
     finally{busy=false}
