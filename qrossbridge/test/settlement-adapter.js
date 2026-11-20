@@ -76,10 +76,9 @@ const units = n => BigInt(n) * 1_000_000n;
     await (await sourceAdapter.setSettlementTreasury(ownerAddress)).wait();
     await (await sourceVerifier.setSigner(validatorAddress, true)).wait();
     await (await destinationVerifier.setSigner(validatorAddress, true)).wait();
-    await (await sourceVerifier.setRoute(sourceId, destinationId, sourceAsset, destinationAsset, ethers.ZeroAddress, true)).wait();
-    await (await sourceVerifier.setRoute(sourceId, destinationId, sourceAsset, destinationAsset, await destinationLedger.getAddress(), true)).wait();
-    await (await destinationVerifier.setRoute(sourceId, destinationId, sourceAsset, destinationAsset, ethers.ZeroAddress, true)).wait();
-    await (await destinationVerifier.setRoute(sourceId, destinationId, sourceAsset, destinationAsset, await destinationLedger.getAddress(), true)).wait();
+    const destinationLedgerAddress = await destinationLedger.getAddress();
+    await (await sourceVerifier.setRoute(sourceId, destinationId, sourceAsset, destinationAsset, destinationLedgerAddress, true)).wait();
+    await (await destinationVerifier.setRoute(sourceId, destinationId, sourceAsset, destinationAsset, destinationLedgerAddress, true)).wait();
 
     await (await sourceToken.mint(userAddress, units(30))).wait();
     await (await sourceToken.connect(user).approve(await sourceLedger.getAddress(), units(30))).wait();
@@ -90,8 +89,8 @@ const units = n => BigInt(n) * 1_000_000n;
     await (await destinationAdapter.connect(destOwner).fundLiquidity(destinationAsset, units(30))).wait();
 
     const transferId = ethers.keccak256(ethers.toUtf8Bytes('settlement-success'));
-    await (await sourceCoordinator.connect(user).requestTransfer(
-      transferId, sourceAsset, units(10), destinationId, destinationAsset, userAddress, sourceAdapterAddress
+    await (await sourceCoordinator.connect(user).requestGatewayHandoff(
+      transferId, sourceAsset, units(10), destinationId, destinationAsset, destinationLedgerAddress, sourceAdapterAddress
     )).wait();
     await (await sourceCoordinator.connect(user).initiate(transferId)).wait();
     let sourceBalance = await sourceLedger.getBalance(userAddress, sourceAsset);
@@ -102,7 +101,7 @@ const units = n => BigInt(n) * 1_000_000n;
     const proof = await deliveryProof({
       wallets: [validator], verifier: destinationVerifierAddress, transferId,
       sourceChainId: sourceId, destinationChainId: destinationId, sourceAsset,
-      recipient: userAddress, destinationAsset, destinationLedger: ethers.ZeroAddress, amount: units(10), deadline
+      recipient: userAddress, destinationAsset, destinationLedger: destinationLedgerAddress, amount: units(10), deadline
     });
     await (await destinationAdapter.connect(destOwner).proveAndFinalize(transferId, proof)).wait();
     const credited = await destinationLedger.getBalance(userAddress, destinationAsset);
@@ -112,7 +111,7 @@ const units = n => BigInt(n) * 1_000_000n;
     const settledProof = await outboundSettlementProof({
       wallets: [validator], verifier: sourceVerifierAddress, transferId,
       sourceChainId: sourceId, destinationChainId: destinationId,
-      sourceAsset, destinationAsset, recipient: userAddress, destinationLedger: ethers.ZeroAddress,
+      sourceAsset, destinationAsset, recipient: userAddress, destinationLedger: destinationLedgerAddress,
       amount: units(10), deadline
     });
     await (await sourceAdapter.settleOutbound(transferId, settledProof)).wait();
@@ -121,7 +120,6 @@ const units = n => BigInt(n) * 1_000_000n;
 
     // Gateway-to-Gateway handoff keeps the Gateway ledger as recipient while crediting the original user.
     const handoffId = ethers.keccak256(ethers.toUtf8Bytes('settlement-gateway-handoff'));
-    const destinationLedgerAddress = await destinationLedger.getAddress();
     await (await sourceCoordinator.connect(user).requestGatewayHandoff(
       handoffId, sourceAsset, units(8), destinationId, destinationAsset, destinationLedgerAddress, sourceAdapterAddress
     )).wait();
@@ -146,8 +144,8 @@ const units = n => BigInt(n) * 1_000_000n;
 
     // Pre-dispatch cancellation restores the exact amount to available.
     const cancelId = ethers.keccak256(ethers.toUtf8Bytes('settlement-cancel'));
-    await (await sourceCoordinator.connect(user).requestTransfer(
-      cancelId, sourceAsset, units(5), destinationId, destinationAsset, userAddress, sourceAdapterAddress
+    await (await sourceCoordinator.connect(user).requestGatewayHandoff(
+      cancelId, sourceAsset, units(5), destinationId, destinationAsset, destinationLedgerAddress, sourceAdapterAddress
     )).wait();
     const cancelProof = await cancellationProof({
       wallets: [validator], verifier: sourceVerifierAddress, transferId: cancelId,
@@ -157,8 +155,8 @@ const units = n => BigInt(n) * 1_000_000n;
 
     // Post-dispatch recovery returns source escrow only after a separate proof.
     const recoverId = ethers.keccak256(ethers.toUtf8Bytes('settlement-recovery'));
-    await (await sourceCoordinator.connect(user).requestTransfer(
-      recoverId, sourceAsset, units(3), destinationId, destinationAsset, userAddress, sourceAdapterAddress
+    await (await sourceCoordinator.connect(user).requestGatewayHandoff(
+      recoverId, sourceAsset, units(3), destinationId, destinationAsset, destinationLedgerAddress, sourceAdapterAddress
     )).wait();
     await (await sourceCoordinator.connect(user).initiate(recoverId)).wait();
     const refundProof = await recoveryProof({
