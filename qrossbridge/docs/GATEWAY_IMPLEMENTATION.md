@@ -381,3 +381,12 @@ The destination adapter releases only pre-funded destination token inventory aft
 The validator helper is `scripts/settlement-attestation.js`; keep validator keys in an isolated operations environment, never in the dApp or repository. The isolated integration scenarios are in `test/settlement-adapter.js` and are included in `npm test`.
 
 The existing QMS bridge still moves only native QMS/wQMS using a trusted relayer. It does not bridge arbitrary USDC. A dedicated QMS bridge adapter remains separate work; do not configure stablecoin routes against the QMS bridge or label them CCTP.
+
+
+## QMS / wQMS bridge adapter
+
+A dedicated Hub/Spoke integration now exists in `contracts/adapters/QrosQmsBridgeAdapter.sol`. It dispatches Hub-side wQMS deposits through `QmsBridgeHub.depositWQMS`, and remote-side wQMS burns through the new owner-allowlisted `QmsBridgeSpoke.bridgeBackFor`. On the destination chain it releases the wQMS actually minted/released to the adapter into the local Gateway ledger.
+
+The QMS-specific verifier (`QrosQmsBridgeAttestationVerifier`) binds the source and destination Hub/Spoke endpoints, source and destination Gateway adapter addresses, token addresses, beneficiary, amount and the bridge's nonce-derived message ID. The validator quorum must independently verify the source `Bridged` event and destination `processed` state/token receipt. The existing bridge relayer remains a trusted transaction submitter; the validator quorum is an additional disclosed trust assumption, not a light client.
+
+This adapter supports QMS Hub <-> remote Spoke routes, not direct spoke-to-spoke transfers. Post-dispatch recovery is not automatic: the exact wQMS must first be returned to the source adapter through a separately authorized recovery operation. See `docs/QMS_WQMS_GATEWAY_ADAPTER.md` for route configuration and operational details.
