@@ -13,7 +13,8 @@
     "deploy-execution": "node --env-file=.env scripts/deploy-execution.js",
     "deploy-qms-gateway-adapter": "node --env-file=.env scripts/deploy-qms-gateway-adapter.js",
     "test:qms-adapter": "node test/qms-gateway-adapter.js",
-    "orchestrate-qms-gateway": "node --env-file=.env scripts/orchestrate-qms-gateway.js"
+    "orchestrate-qms-gateway": "node --env-file=.env scripts/orchestrate-qms-gateway.js",
+    "deploy-gateway-core": "node --env-file=.env scripts/deploy-gateway-core.js"
   },
   "engines": {
     "node": ">=20"
