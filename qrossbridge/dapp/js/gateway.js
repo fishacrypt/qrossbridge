@@ -80,6 +80,91 @@
     }catch(e){message(e?.shortMessage||e?.reason||e?.message||'Withdrawal failed.',true);status('Withdrawal not completed','error')}
     finally{setBusy(false)}
   }
+  const COORDINATOR_ABI=[
+    'function requestTransfer(bytes32 transferId,address asset,uint256 amount,uint256 destinationChainId,address destinationAsset,address recipient,address adapter)',
+    'function initiate(bytes32 transferId)',
+    'event TransferRequested(bytes32 indexed transferId,address indexed user,address indexed asset,uint256 amount,uint256 destinationChainId,address adapter)',
+    'event TransferInitiated(bytes32 indexed transferId,address indexed adapter)'
+  ];
+  let pendingTransferId=null;
+  function configuredRoutes(){
+    const c=cfg();
+    return Array.isArray(c.routes)?c.routes.filter(r=>r.sourceAsset&&r.destinationAsset&&r.adapter&&Number(r.destinationChainId)>0&&ethers.isAddress(r.sourceAsset)&&ethers.isAddress(r.destinationAsset)&&ethers.isAddress(r.adapter)):[];
+  }
+  function renderTransferOptions(){
+    const routes=configuredRoutes(),assetSelect=$g('gatewayTransferAsset'),routeSelect=$g('gatewayTransferRoute'),destSelect=$g('gatewayTransferDestinationAsset');
+    if(!assetSelect||!routeSelect||!destSelect)return;
+    const assets=cfg().assets||[];
+    const oldAsset=assetSelect.value,oldRoute=routeSelect.value;
+    assetSelect.replaceChildren();routeSelect.replaceChildren();destSelect.replaceChildren();
+    for(const a of assets){if(!ethers.isAddress(a.address||''))continue;const o=document.createElement('option');o.value=a.address;o.textContent=(a.symbol||'Asset')+' · '+a.address.slice(0,6)+'…';assetSelect.append(o)}
+    const filtered=routes.filter(r=>!assetSelect.value||r.sourceAsset.toLowerCase()===assetSelect.value.toLowerCase());
+    for(const r of filtered){const o=document.createElement('option');o.value=r.id||[r.destinationChainId,r.destinationAsset,r.adapter].join(':');o.textContent=r.label||('Chain '+r.destinationChainId);routeSelect.append(o)}
+    if([...assetSelect.options].some(o=>o.value.toLowerCase()===oldAsset.toLowerCase()))assetSelect.value=oldAsset;
+    const selected=routes.find(r=>(r.id||[r.destinationChainId,r.destinationAsset,r.adapter].join(':'))===routeSelect.value)||filtered[0];
+    if(selected){const o=document.createElement('option');o.value=selected.destinationAsset;o.textContent=selected.destinationSymbol||selected.destinationAsset;destSelect.append(o)}
+    else{const o=document.createElement('option');o.textContent='No configured route';o.value='';destSelect.append(o)}
+  }
+  async function requestGatewayTransfer(){
+    setBusy(true);const b=$g('gatewayTransferButton');if(b)b.disabled=true;
+    const msg=$g('gatewayTransferMessage');if(msg)msg.textContent='';
+    try{
+      const routes=configuredRoutes(),asset=selectedAsset('gatewayTransferAsset');
+      const route=routes.find(r=>(r.id||[r.destinationChainId,r.destinationAsset,r.adapter].join(':'))===$g('gatewayTransferRoute')?.value);
+      if(!asset||!route)throw new Error('No verified Gateway transfer route is configured for this source asset.');
+      const amount=parseAmount($g('gatewayTransferAmount')?.value,Number(asset.decimals??6));
+      const recipient=($g('gatewayTransferRecipient')?.value||'').trim();
+      if(!ethers.isAddress(recipient))throw new Error('Enter a valid destination wallet address.');
+      const c=cfg();
+      if(!c.coordinator||!ethers.isAddress(c.coordinator))throw new Error('Gateway transfer coordinator is not configured.');
+      const {signer,ledger}=await transactionContext();
+      if(!(await ledger.supportedAssets(asset.address)))throw new Error('Source asset is not enabled in the Gateway ledger.');
+      const owner=await signer.getAddress(),balance=await ledger.getBalance(owner,asset.address);
+      if(balance.available<amount)throw new Error('Insufficient available Gateway balance.');
+      const id=ethers.hexlify(ethers.randomBytes(32));
+      const coordinator=new ethers.Contract(c.coordinator,COORDINATOR_ABI,signer);
+      status('Review transfer request in wallet…','loading');
+      message('This reserves the selected amount in Gateway. Settlement initiation requires a separate wallet confirmation.');
+      const tx=await coordinator.requestTransfer(id,asset.address,amount,Number(route.destinationChainId),route.destinationAsset,recipient,route.adapter);
+      if(msg)msg.textContent='Transfer request submitted: '+tx.hash;
+      await tx.wait();
+      pendingTransferId=id;
+      if($g('gatewayInitiateButton'))$g('gatewayInitiateButton').hidden=false;
+      if(msg)msg.textContent='Transfer reserved on Gateway. Review and initiate settlement as a separate transaction.';
+      $g('gatewayTransferAmount').value='';await refresh();
+      await refreshTransferHistory();
+    }catch(e){if(msg)msg.textContent=e?.shortMessage||e?.reason||e?.message||'Transfer request failed.';status('Transfer not requested','error')}
+    finally{setBusy(false);if(b)b.disabled=false}
+  }
+  async function initiateGatewayTransfer(){
+    if(!pendingTransferId)throw new Error('No pending transfer request in this session.');
+    const b=$g('gatewayInitiateButton'),msg=$g('gatewayTransferMessage');if(b)b.disabled=true;
+    try{
+      const c=cfg();if(!c.coordinator||!ethers.isAddress(c.coordinator))throw new Error('Gateway coordinator is not configured.');
+      const {signer}=await transactionContext(),coordinator=new ethers.Contract(c.coordinator,COORDINATOR_ABI,signer);
+      status('Confirm settlement initiation in wallet…','loading');
+      const tx=await coordinator.initiate(pendingTransferId);
+      if(msg)msg.textContent='Settlement initiation submitted: '+tx.hash;
+      await tx.wait();if(msg)msg.textContent='Settlement initiation confirmed. Destination delivery remains pending independent verification.';
+      pendingTransferId=null;if(b)b.hidden=true;await refreshTransferHistory();status('Transfer initiated · awaiting settlement','ready');
+    }catch(e){if(msg)msg.textContent=e?.shortMessage||e?.reason||e?.message||'Could not initiate settlement.';status('Initiation not completed','error')}
+    finally{if(b)b.disabled=false}
+  }
+  async function refreshTransferHistory(){
+    const root=$g('gatewayTransferHistory'),c=cfg();if(!root||!c.coordinator||!ethers.isAddress(c.coordinator)||typeof S==='undefined'||!S.provider||!S.account)return;
+    try{
+      const provider=new ethers.BrowserProvider(S.provider),contract=new ethers.Contract(c.coordinator,COORDINATOR_ABI,provider);
+      const events=await contract.queryFilter(contract.filters.TransferRequested(null,S.account),-5000,'latest');
+      root.replaceChildren();
+      if(!events.length){root.textContent='No Gateway transfer requests found in the recent event window.';return}
+      for(const ev of events.slice(-20).reverse()){
+        const row=document.createElement('div');row.className='gateway-asset';const id=document.createElement('b');id.textContent=ev.args.transferId.slice(0,10)+'…';
+        const detail=document.createElement('span');detail.textContent='Chain '+ev.args.destinationChainId+' · '+ethers.formatUnits(ev.args.amount,6)+' units';
+        const state=document.createElement('span');state.textContent='Requested · verify destination settlement separately';
+        row.append(id,detail,state);root.append(row);
+      }
+    }catch(e){root.textContent='Transfer history unavailable: '+(e?.shortMessage||e?.message||'RPC query failed')}
+  }
   function renderAssets(items){
     const root=$g('gatewayAssets');if(!root)return;
     root.replaceChildren();
@@ -98,7 +183,7 @@
     if(busy)return;busy=true;
     try{
       const c=cfg(),items=Array.isArray(c.assets)?c.assets:[];
-      renderAssets(items);renderAssetSelectors(items);
+      renderAssets(items);renderAssetSelectors(items);renderTransferOptions();
       if(typeof S==='undefined'||!S.account||!S.provider){status('Connect wallet to view balances','idle');set('gatewayOwner','Wallet not connected');return}
       set('gatewayOwner',S.account);
       if(!c.ledger||!ethers.isAddress(c.ledger)){status('Gateway contract not configured','idle');set('gatewayTotal','—');return}
@@ -126,7 +211,11 @@
     const b=$g('gatewayRefresh');if(b)b.addEventListener('click',refresh);
     const d=$g('gatewayDepositButton');if(d)d.addEventListener('click',deposit);
     const w=$g('gatewayWithdrawButton');if(w)w.addEventListener('click',withdraw);
-    renderAssetSelectors(cfg().assets||[]);
+    const t=$g('gatewayTransferButton');if(t)t.addEventListener('click',requestGatewayTransfer);
+    const i=$g('gatewayInitiateButton');if(i)i.addEventListener('click',initiateGatewayTransfer);
+    const a=$g('gatewayTransferAsset');if(a)a.addEventListener('change',renderTransferOptions);
+    const r=$g('gatewayTransferRoute');if(r)r.addEventListener('change',renderTransferOptions);
+    renderAssetSelectors(cfg().assets||[]);renderTransferOptions();
   });
   window.addEventListener('qros:wallet-updated',refresh);
 })();
