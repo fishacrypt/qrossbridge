@@ -49,8 +49,14 @@ contract UniswapV3LiquidityAdapter is Ownable, ReentrancyGuard, IERC721Receiver,
     IUniV3PositionManager public positionManager;
     IQrosPositionRegistry public registry;
     mapping(uint24 => bool) public allowedPoolFees;
+    mapping(uint24 => bool) public allowedSwapFees;
+    mapping(bytes32 => bool) public allowedStrategyPairs;
+    uint256 public maxExecutionWindow = 30 minutes;
     event ProtocolConfigUpdated(address swapRouter, address positionManager, address registry);
     event PoolFeeApproval(uint24 fee, bool approved);
+    event SwapFeeApproval(uint24 fee, bool approved);
+    event StrategyPairApproval(bytes32 indexed strategyId, address indexed token0, address indexed token1, bool approved);
+    event MaxExecutionWindowUpdated(uint256 previousWindow, uint256 newWindow);
     event LiquidityPositionCreated(bytes32 indexed executionId, bytes32 indexed positionId, address indexed user, uint256 tokenId, uint128 liquidity);
     event PositionFeesCollected(bytes32 indexed positionId, address indexed user, uint256 amount0, uint256 amount1);
     event PositionLiquidityReduced(bytes32 indexed positionId, address indexed user, uint128 liquidityRemoved, uint256 amount0, uint256 amount1);
@@ -63,16 +69,31 @@ contract UniswapV3LiquidityAdapter is Ownable, ReentrancyGuard, IERC721Receiver,
         emit ProtocolConfigUpdated(router, manager, registry_);
     }
     function setPoolFee(uint24 fee, bool approved) external onlyOwner { require(fee > 0, "Invalid fee"); allowedPoolFees[fee] = approved; emit PoolFeeApproval(fee, approved); }
-    function execute(bytes32 executionId, address user, address asset, uint256 amount, bytes32, bytes calldata adapterData)
+    function setSwapFee(uint24 fee, bool approved) external onlyOwner { require(fee > 0, "Invalid fee"); allowedSwapFees[fee] = approved; emit SwapFeeApproval(fee, approved); }
+    function setStrategyPair(bytes32 strategyId, address token0, address token1, bool approved) external onlyOwner {
+        require(strategyId != bytes32(0) && token0 != address(0) && token0 < token1, "Invalid strategy pair");
+        bytes32 key = keccak256(abi.encode(strategyId, token0, token1));
+        allowedStrategyPairs[key] = approved;
+        emit StrategyPairApproval(strategyId, token0, token1, approved);
+    }
+    function setMaxExecutionWindow(uint256 newWindow) external onlyOwner {
+        require(newWindow >= 1 minutes && newWindow <= 2 hours, "Invalid execution window");
+        emit MaxExecutionWindowUpdated(maxExecutionWindow, newWindow);
+        maxExecutionWindow = newWindow;
+    }
+    function execute(bytes32 executionId, address user, address asset, uint256 amount, bytes32 strategyId, bytes calldata adapterData)
         external onlyLedger nonReentrant returns (uint256 spent, uint256 returnedAmount, bytes32 positionId)
     {
         require(address(swapRouter) != address(0) && address(positionManager) != address(0) && address(registry) != address(0), "Adapter not configured");
         require(user != address(0) && amount != 0, "Invalid execution");
         Params memory p = abi.decode(adapterData, (Params));
-        require(block.timestamp <= p.deadline, "Execution expired");
+        require(p.deadline >= block.timestamp && p.deadline <= block.timestamp + maxExecutionWindow, "Invalid execution deadline");
         require(p.token0 < p.token1 && (asset == p.token0 || asset == p.token1), "Invalid token pair");
+        require(allowedStrategyPairs[keccak256(abi.encode(strategyId, p.token0, p.token1))], "Strategy pair not approved");
         require(allowedPoolFees[p.poolFee], "Pool fee not approved");
         require(p.tickLower < p.tickUpper && p.swapAmount <= amount, "Invalid strategy bounds");
+        if (p.swapAmount == 0) require(p.minSwapOut == 0, "Unexpected swap minimum");
+        else require(allowedSwapFees[p.swapFee] && p.minSwapOut != 0, "Swap route not approved");
         address outputToken = asset == p.token0 ? p.token1 : p.token0;
         IERC20 input = IERC20(asset); IERC20 output = IERC20(outputToken);
         uint256 inputBalance = input.balanceOf(address(this));
@@ -103,9 +124,11 @@ contract UniswapV3LiquidityAdapter is Ownable, ReentrancyGuard, IERC721Receiver,
         }));
         IERC20(p.token0).forceApprove(address(positionManager), 0);
         IERC20(p.token1).forceApprove(address(positionManager), 0);
+        require(liquidity != 0 && positionManager.ownerOf(tokenId) == address(this), "Invalid minted position");
         positionId = keccak256(abi.encode(block.chainid, address(positionManager), tokenId));
         registry.registerPosition(positionId, user, address(positionManager), tokenId, p.token0, p.token1, p.poolFee, p.tickLower, p.tickUpper, liquidity);
         positionManager.safeTransferFrom(address(this), user, tokenId);
+        require(positionManager.ownerOf(tokenId) == user, "NFT delivery failed");
         returnedAmount = input.balanceOf(address(this)) - initialInput;
         require(returnedAmount <= amount, "Input reconciliation");
         spent = amount - returnedAmount;
