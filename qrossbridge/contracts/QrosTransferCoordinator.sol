@@ -24,6 +24,7 @@ contract QrosTransferCoordinator is Ownable, ReentrancyGuard {
         address recipient;
         address adapter;
         bool initiated;
+        bool gatewayHandoff;
     }
 
     IQrosTransferLedger public immutable ledger;
@@ -33,6 +34,7 @@ contract QrosTransferCoordinator is Ownable, ReentrancyGuard {
     event AdapterApproval(address indexed adapter, bool approved);
     event TransferRequested(bytes32 indexed transferId, address indexed user, address indexed asset, uint256 amount, uint256 destinationChainId, address adapter);
     event TransferInitiated(bytes32 indexed transferId, address indexed adapter);
+    event GatewayHandoffRequested(bytes32 indexed transferId, address indexed user, uint256 indexed destinationChainId, address destinationLedger, address destinationAsset, uint256 amount);
 
     constructor(address initialOwner, address ledger_) Ownable(initialOwner) {
         require(ledger_ != address(0), "Invalid ledger");
@@ -53,9 +55,36 @@ contract QrosTransferCoordinator is Ownable, ReentrancyGuard {
         require(approvedAdapters[adapter], "Adapter not approved");
         require(destinationChainId != 0 && destinationChainId != block.chainid, "Invalid destination");
         require(destinationAsset != address(0) && recipient != address(0) && amount != 0, "Invalid transfer");
-        transfers[transferId] = TransferIntent(msg.sender, asset, amount, destinationChainId, destinationAsset, recipient, adapter, false);
+        transfers[transferId] = TransferIntent(msg.sender, asset, amount, destinationChainId, destinationAsset, recipient, adapter, false, false);
         ledger.beginOutboundTransferFor(msg.sender, transferId, asset, amount, destinationChainId, destinationAsset, recipient);
         emit TransferRequested(transferId, msg.sender, asset, amount, destinationChainId, adapter);
+    }
+
+    /// @notice Reserve source Gateway funds for delivery into the user's
+    ///         Gateway ledger on another chain. The settlement adapter must
+    ///         deliver destinationAsset to destinationLedger, then prove that
+    ///         receipt before the destination ledger credits the same user.
+    function requestGatewayHandoff(
+        bytes32 transferId, address asset, uint256 amount, uint256 destinationChainId,
+        address destinationAsset, address destinationLedger, address adapter
+    ) external nonReentrant {
+        require(transferId != bytes32(0) && transfers[transferId].user == address(0), "Transfer ID used");
+        require(approvedAdapters[adapter], "Adapter not approved");
+        require(destinationChainId != 0 && destinationChainId != block.chainid, "Invalid destination");
+        require(destinationAsset != address(0) && destinationLedger != address(0) && amount != 0, "Invalid handoff");
+        transfers[transferId] = TransferIntent(
+            msg.sender, asset, amount, destinationChainId, destinationAsset,
+            destinationLedger, adapter, false, true
+        );
+        ledger.beginOutboundTransferFor(
+            msg.sender, transferId, asset, amount, destinationChainId, destinationAsset, destinationLedger
+        );
+        emit TransferRequested(transferId, msg.sender, asset, amount, destinationChainId, adapter);
+        emit GatewayHandoffRequested(transferId, msg.sender, destinationChainId, destinationLedger, destinationAsset, amount);
+    }
+
+    function getTransfer(bytes32 transferId) external view returns (TransferIntent memory) {
+        return transfers[transferId];
     }
 
     function initiate(bytes32 transferId) external nonReentrant {
