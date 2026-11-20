@@ -43,7 +43,7 @@ The focused harness is also included at the end of the consolidated `npm test` s
 
 ## Attestation and trust boundary
 
-The QMS bridge verifier uses sorted EIP-712 validator signatures over the transfer ID, both chain IDs, both bridge endpoints, both adapters, both token contracts, the adapter custody beneficiary, amount, bridge message ID and deadline. The settlement verifier separately binds the Gateway user, destination asset, amount and destination ledger.
+The QMS bridge verifier uses sorted EIP-712 validator signatures over the transfer ID, both chain IDs, both bridge endpoints, both adapters, both token contracts, the adapter custody beneficiary, amount, bridge message ID and deadline. The settlement verifier separately binds the Gateway user, source asset, destination asset, amount and destination ledger; the adapter also requires the source token in the bridge attestation to equal the source asset in the settlement attestation.
 
 This is a validator-attested model, not a trustless cross-chain light client. Validators must independently reconcile the source `Bridged` event and the destination bridge's processed/minted/released state before signing. The harness signs proofs directly with a local validator key only to exercise the verification path; it does not implement a production validator monitoring service or key-management system.
 
