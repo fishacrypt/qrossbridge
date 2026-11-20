@@ -13,10 +13,6 @@ interface IQmsSpokeGateway {
     function bridgeBackFor(address holder, uint256 amount, address recipient, bool asNative) external;
     function token() external view returns (address);
 }
-interface IWQMSGateway {
-    function approve(address spender, uint256 amount) external returns (bool);
-}
-
 /// @notice Gateway adapter for the existing QMS Hub <-> remote wQMS Spoke bridge.
 /// @dev Requires independent quorum attestations of the source Bridged event AND destination processed/minted/released state.
 ///      This is a trusted-validator integration, not a trustless cross-chain light client.
@@ -27,6 +23,7 @@ contract QrosQmsBridgeAdapter is QrosSettlementAdapterBase {
         address bridge;
         address token;
         address adapter;
+        address gatewayLedger;
         bool enabled;
     }
 
@@ -79,21 +76,26 @@ contract QrosQmsBridgeAdapter is QrosSettlementAdapterBase {
 
     /// @notice Configure the remote Hub/Spoke endpoint, its wrapped token and destination Gateway adapter.
     function setRemoteRoute(
-        uint256 chainId, address bridge, address token, address adapter, bool enabled
+        uint256 chainId, address bridge, address token, address adapter, address gatewayLedger, bool enabled
     ) external onlyOwner {
         require(chainId != 0 && chainId != block.chainid, "Invalid chain");
-        require(bridge != address(0) && token != address(0) && adapter != address(0), "Zero route field");
-        remoteRoutes[chainId] = RemoteRoute(bridge, token, adapter, enabled);
+        require(
+            bridge != address(0) && token != address(0) && adapter != address(0) &&
+            gatewayLedger != address(0), "Zero route field"
+        );
+        remoteRoutes[chainId] = RemoteRoute(bridge, token, adapter, gatewayLedger, enabled);
         emit RemoteRouteUpdated(chainId, bridge, token, adapter, enabled);
     }
 
     function _dispatchOutbound(
         bytes32 transferId, address asset, uint256 amount, uint256 destinationChainId,
-        address destinationAsset, address, address, address
+        address destinationAsset, address ledgerRecipient, address beneficiary, address destinationLedger
     ) internal override {
         RemoteRoute memory route = remoteRoutes[destinationChainId];
         require(route.enabled, "QMS route disabled");
         require(destinationAsset == route.token, "Destination wQMS mismatch");
+        require(destinationLedger != address(0) && destinationLedger == route.gatewayLedger, "Destination Gateway mismatch");
+        require(ledgerRecipient == destinationLedger && beneficiary != address(0), "Invalid Gateway beneficiary");
         require(!outboundMessageUsed[transferId], "Bridge transfer already used");
         outboundMessageUsed[transferId] = true;
 
@@ -147,6 +149,7 @@ contract QrosQmsBridgeAdapter is QrosSettlementAdapterBase {
         address expectedDestinationToken = localToken;
 
         return valid && provedSourceChain == sourceChainId && destinationChain == block.chainid &&
+            sourceRoute.gatewayLedger == address(ledger) &&
             sourceBridge == expectedSourceBridge && destinationBridge == expectedDestinationBridge &&
             sourceAdapter == sourceRoute.adapter && destinationToken == asset &&
             sourceToken == expectedSourceToken &&
