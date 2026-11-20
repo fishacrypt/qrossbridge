@@ -10,7 +10,8 @@
     "relayer": "node --env-file=.env relayer/run.js",
     "apply-config": "node scripts/apply-config.js",
     "execution-relayer": "node --env-file=.env relayer/execution-runner.js",
-    "deploy-execution": "node --env-file=.env scripts/deploy-execution.js"
+    "deploy-execution": "node --env-file=.env scripts/deploy-execution.js",
+    "deploy-qms-gateway-adapter": "node --env-file=.env scripts/deploy-qms-gateway-adapter.js"
   },
   "engines": {
     "node": ">=20"
