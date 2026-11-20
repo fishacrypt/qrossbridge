@@ -90,6 +90,7 @@ contract QrosTransferCoordinator is Ownable, ReentrancyGuard {
     function initiate(bytes32 transferId) external nonReentrant {
         TransferIntent storage t = transfers[transferId];
         require(t.user != address(0) && !t.initiated, "Transfer unavailable");
+        require(msg.sender == t.user, "Only transfer owner may initiate");
         require(approvedAdapters[t.adapter], "Adapter not approved");
         t.initiated = true;
         IQrosSettlementInitiator(t.adapter).initiate(transferId);
