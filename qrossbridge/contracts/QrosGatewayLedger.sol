@@ -363,8 +363,9 @@ contract QrosGatewayLedger is Ownable, Pausable, ReentrancyGuard {
         address user, address asset, uint256 amount,
         address deployedAsset, uint256 deployedReduction
     ) external onlyExecutionAdapter nonReentrant {
-        require(user != address(0) && supportedAssets[asset], "Invalid proceeds asset");
+        require(user != address(0), "Invalid proceeds owner");
         require(amount != 0 || deployedReduction != 0, "Empty position settlement");
+        if (amount != 0) require(supportedAssets[asset], "Proceeds asset not supported");
         Balance storage deployedBalance = balances[user][deployedAsset];
         require(deployedBalance.deployed >= deployedReduction, "Deployed balance underflow");
         if (amount != 0) {
