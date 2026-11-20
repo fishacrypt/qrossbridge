@@ -122,6 +122,7 @@ window.QROS_GATEWAY_CONFIG = {
       destinationChainId: 84532,
       destinationAsset: "0x<verified-destination-token>",
       destinationSymbol: "USDC",
+      destinationLedger: "0x<verified-destination-Gateway-ledger>",
       adapter: "0x<approved-settlement-adapter>"
     }
   ]
