@@ -76,10 +76,4 @@ contract QrosExecutionRouter is Ownable, EIP712, ReentrancyGuard {
         emit IntentExecuted(intentHash, executionId, i.user, positionId);
     }
 
-    function cancelExpired(bytes32 intentHash, bytes32 executionId) external nonReentrant {
-        require(executionForIntent[intentHash] == executionId && executionId != bytes32(0), "Unknown intent");
-        // Only reserved executions can be released; completed executions revert in the ledger.
-        ledger.releaseExecutionForRouter(executionId);
-        emit IntentCancelled(intentHash, executionId);
-    }
 }
