@@ -131,9 +131,10 @@ contract QrosQmsBridgeAdapter is QrosSettlementAdapterBase {
             uint256 destinationChain,
             address sourceBridge,
             address destinationBridge,
+            address sourceAdapter,
+            address destinationAdapter,
             address sourceToken,
             address destinationToken,
-            address destinationAdapter,
             address beneficiary,
             uint256 provedAmount,
             bytes32 bridgeMessageId
@@ -147,7 +148,8 @@ contract QrosQmsBridgeAdapter is QrosSettlementAdapterBase {
 
         return valid && provedSourceChain == sourceChainId && destinationChain == block.chainid &&
             sourceBridge == expectedSourceBridge && destinationBridge == expectedDestinationBridge &&
-            sourceToken == expectedSourceToken && destinationToken == asset &&
+            sourceAdapter == sourceRoute.adapter && destinationToken == asset &&
+            sourceToken == expectedSourceToken &&
             expectedDestinationToken == asset && destinationAdapter == address(this) &&
             beneficiary == recipient && provedAmount == amount && bridgeMessageId != bytes32(0);
     }
