@@ -8,6 +8,7 @@ const DELIVERY_TYPES = {
     { name: 'transferId', type: 'bytes32' },
     { name: 'sourceChainId', type: 'uint256' },
     { name: 'destinationChainId', type: 'uint256' },
+    { name: 'sourceAsset', type: 'address' },
     { name: 'recipient', type: 'address' },
     { name: 'destinationAsset', type: 'address' },
     { name: 'amount', type: 'uint256' },
@@ -62,16 +63,16 @@ async function signatures(wallets, domainData, types, value) {
   return signed.map(x => x.signature);
 }
 
-async function deliveryProof({ wallets, verifier, transferId, sourceChainId, destinationChainId, recipient, destinationAsset, amount, deadline }) {
+async function deliveryProof({ wallets, verifier, transferId, sourceChainId, destinationChainId, sourceAsset, recipient, destinationAsset, amount, deadline }) {
   const value = {
     transferId, sourceChainId: BigInt(sourceChainId), destinationChainId: BigInt(destinationChainId),
-    recipient: ethers.getAddress(recipient), destinationAsset: ethers.getAddress(destinationAsset),
+    sourceAsset: ethers.getAddress(sourceAsset), recipient: ethers.getAddress(recipient), destinationAsset: ethers.getAddress(destinationAsset),
     amount: BigInt(amount), deadline: BigInt(deadline)
   };
   const sigs = await signatures(wallets, domain(destinationChainId, verifier), DELIVERY_TYPES, value);
   return ethers.AbiCoder.defaultAbiCoder().encode(
-    ['uint256','uint256','address','address','uint256','uint256','bytes[]'],
-    [value.sourceChainId,value.destinationChainId,value.recipient,value.destinationAsset,value.amount,value.deadline,sigs]
+    ['uint256','uint256','address','address','address','uint256','uint256','bytes[]'],
+    [value.sourceChainId,value.destinationChainId,value.sourceAsset,value.recipient,value.destinationAsset,value.amount,value.deadline,sigs]
   );
 }
 
