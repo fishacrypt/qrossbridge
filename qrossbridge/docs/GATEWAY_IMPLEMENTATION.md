@@ -323,3 +323,36 @@ After execution, the UI reads the user's position IDs from the configured regist
 **Configuration warning:** the example values are placeholders, not deployed addresses or a live QMS/Uniswap route. The tick range is illustrative and must be selected for the target pool and price. Do not copy the example configuration into production. The UI must only be enabled with official chain-specific Uniswap addresses, verified token decimals, a real pool, approved strategy pair and fee tiers, and a reviewed deployment.
 
 The current panel covers execution authorization and position visibility. It does not yet implement a user interface for fee collection, liquidity reduction or closing an NFT position. Those actions remain available only through the adapter's explicit user-approved contract methods or the canonical Uniswap interface.
+
+
+## Position management and Gateway reconciliation
+
+The Uniswap V3 adapter and Gateway now support three user-authorized position actions:
+
+- **Collect fees:** collect accrued token0/token1 fees. The user chooses direct wallet delivery or Gateway credit.
+- **Reduce liquidity:** remove a specified liquidity amount, collect the resulting principal and fees, and route both assets to the wallet or Gateway.
+- **Close position:** remove all remaining liquidity, collect all owed tokens, burn the empty NFT and mark the registry entry closed. The user chooses wallet or Gateway delivery.
+
+The dashboard displays active position metadata and exposes these actions. Before the adapter acts, the user must approve that exact NFT to the adapter (or have already granted operator approval). The UI asks for confirmation before granting a token-specific approval and before closing a position. The adapter verifies the registry owner, active status, NFT ownership and approval.
+
+### Accounting model
+
+At mint time the registry records the original Gateway input asset and the amount actually spent as that position's deployed cost basis. Unspent input is returned to the user's available Gateway balance by the existing execution path.
+
+For a liquidity reduction, the adapter releases a proportional share of the recorded cost basis (all remaining basis when all liquidity is removed). On close it releases the full remaining basis. This is a cost-basis allocation, not a valuation of the NFT or a claim that the user has recovered that amount.
+
+For each action the user explicitly chooses one destination:
+
+- **Wallet:** collected tokens are sent directly to the connected user. The corresponding deployed cost basis is released from the Gateway's informational deployed bucket; no available Gateway balance is credited.
+- **Gateway:** collected tokens are transferred into the ledger, which verifies receipt against custody liabilities and credits each supported token to the user's available balance. The associated deployed cost basis is reduced in the same transaction.
+
+Fee collection does not reduce principal cost basis. Reduce/close amounts include both the decrease-liquidity proceeds and all fees collected in that transaction. All movements and registry updates are atomic: if token transfer or Gateway accounting fails, the entire action reverts.
+
+### Operational boundaries
+
+- The Gateway must have each token enabled before it can credit proceeds in that token. If a position includes an unsupported token, the user must choose wallet delivery or governance must first enable that asset.
+- Partial cost-basis allocation is proportional to liquidity removed. It is an accounting convention, not a mark-to-market calculation.
+- The position NFT is held by the user between actions. QROS cannot manage it without the user's explicit NFT approval.
+- The current UI uses zero minimum-output values for reduce/close actions. Users should only execute when they accept the resulting slippage risk; production UI should require nonzero, user-reviewed minimums and show a current quote.
+- No automatic conversion between token0 and token1 is performed when proceeds return to Gateway. Each token is credited separately, preserving asset-specific accounting.
+- Position actions, ledger crediting, and NFT lifecycle changes have been implemented but have not been compiled or exercised in this stage. They are not a production-readiness claim.
