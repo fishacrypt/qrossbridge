@@ -6,7 +6,7 @@ pragma solidity ^0.8.26;
 interface IQrosSettlementProofVerifier {
     function verifyDelivery(bytes32 transferId, bytes calldata proof)
         external view
-        returns (bool valid, uint256 sourceChainId, address recipient, address destinationAsset, uint256 amount);
+        returns (bool valid, uint256 sourceChainId, address sourceAsset, address recipient, address destinationAsset, uint256 amount);
 
     function verifyRecovery(bytes32 transferId, bytes calldata proof)
         external view returns (bool valid, uint256 sourceChainId, address sourceAsset, uint256 amount);
