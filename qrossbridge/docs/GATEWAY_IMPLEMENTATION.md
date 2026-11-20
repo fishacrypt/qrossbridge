@@ -100,3 +100,36 @@ window.QROS_GATEWAY_CONFIG = {
 Before a deposit, the UI checks the ledger's `supportedAssets` flag, requests ERC-20 allowance and asks the user to approve the exact amount if needed, then calls `deposit(asset, amount)`. Withdrawals call `withdraw(asset, amount, recipient)` and check the connected user's available balance before submitting. Both require the wallet to be on the configured ledger chain. Transaction completion is awaited before the displayed balances refresh.
 
 The interface does not initiate transfers or execution as a side effect of either operation. No default chain, token or ledger address is supplied by the frontend. The deployment configuration must only contain addresses verified for the selected chain. These flows remain subject to contract-level security review and end-to-end validation; they are not evidence of a deployed or audited Gateway.
+
+
+## Cross-chain Gateway transfer UI
+
+The Gateway dApp includes a configured-route transfer form. Deployment configuration must include a coordinator address and explicit routes; the UI does not infer token mappings or settlement adapters from the legacy bridge network list.
+
+```js
+window.QROS_GATEWAY_CONFIG = {
+  chainId: 19480, // actual chain hosting the ledger and coordinator
+  ledger: "0x<verified-ledger-address>",
+  coordinator: "0x<verified-transfer-coordinator>",
+  assets: [
+    { symbol: "USDC", address: "0x<verified-source-token>", decimals: 6 }
+  ],
+  routes: [
+    {
+      id: "qms-to-base-usdc",
+      label: "Base Sepolia",
+      sourceAsset: "0x<verified-source-token>",
+      destinationChainId: 84532,
+      destinationAsset: "0x<verified-destination-token>",
+      destinationSymbol: "USDC",
+      adapter: "0x<approved-settlement-adapter>"
+    }
+  ]
+};
+```
+
+A request checks the user's available Gateway balance and asks the wallet to call `QrosTransferCoordinator.requestTransfer`. The ledger moves the amount from available to inTransit. After that transaction confirms, the UI offers a separate `initiate(transferId)` wallet transaction. The adapter is selected from the explicit configured route and must also be approved in the coordinator contract.
+
+The browser keeps the newly requested transfer ID in memory for the second step. Transfer history is read from coordinator events for the connected wallet over a recent block window. It is an activity view, not a final settlement oracle.
+
+**Critical limitation:** the current coordinator's `initiate` call only asks the configured adapter to begin settlement. It does not establish destination finality. The destination balance must not be credited until an independently verified settlement adapter proves the source event/message and destination receipt, enforces replay protection, and calls the ledger's inbound-credit path. Cancellation must likewise only be possible when the adapter can prove that no irreversible settlement occurred. Do not configure placeholder adapter addresses or enable a route without a reviewed adapter implementation.
