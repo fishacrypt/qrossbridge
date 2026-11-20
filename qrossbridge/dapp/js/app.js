@@ -120,7 +120,7 @@ function enterView(v){
   else if(v==='networks'){refreshNetStatus()}
   else if(v==='docs'){renderDocs();loadBridgeInfo(QMS.id).then(()=>{if(currentView==='docs')renderDocs()}).catch(()=>{})}
 }
-function renderAll(){renderSides();renderQuote();renderWalletBtn();refreshViews();if(currentView==='bridge')renderRouteInfo();if(currentView==='execution'&&typeof exRefreshView==='function')exRefreshView()}
+function renderAll(){renderSides();renderQuote();renderWalletBtn();refreshViews();if(currentView==='bridge')renderRouteInfo();if(currentView==='execution'&&typeof exRefreshView==='function')exRefreshView();if(currentView==='gateway'&&typeof qrosGatewayRefresh==='function')qrosGatewayRefresh()}
 
 /* resume the most recent unfinished transfer after a refresh */
 function resumeLive(){
