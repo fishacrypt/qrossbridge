@@ -234,6 +234,11 @@
     'function ledger() view returns (address)',
     'function execute((address user,address asset,uint256 amount,bytes32 strategyId,bytes32 adapterDataHash,uint256 nonce,uint256 deadline) i,bytes adapterData,bytes signature) returns (bytes32 executionId,bytes32 positionId)'
   ];
+  const EXECUTION_ADAPTER_ABI=[
+    'function allowedPoolFees(uint24 fee) view returns (bool)',
+    'function allowedSwapFees(uint24 fee) view returns (bool)',
+    'function allowedStrategyPairs(bytes32 key) view returns (bool)'
+  ];
   const EXECUTION_LEDGER_ABI=[
     'function executionAdapter() view returns (address)',
     'function getBalance(address user,address asset) view returns (uint256 available,uint256 inTransit,uint256 reserved,uint256 deployed)'
@@ -303,9 +308,17 @@
       const [configuredLedger,configuredAdapter]=await Promise.all([router.ledger(),ledgerRead.executionAdapter()]);
       if(configuredLedger.toLowerCase()!==(await ledger.getAddress()).toLowerCase())throw new Error('Execution router points to a different Gateway ledger.');
       if(configuredAdapter.toLowerCase()!==adapterAddress.toLowerCase())throw new Error('Configured Uniswap adapter does not match the ledger execution adapter.');
+      if(!ethers.isHexString(x.strategyId,32))throw new Error('Execution strategy ID must be a bytes32 value.');
       if(!(await router.approvedStrategies(x.strategyId)))throw new Error('This execution strategy is not approved on-chain.');
       const token0=ethers.getAddress(x.token0),token1=ethers.getAddress(x.token1),asset=ethers.getAddress(x.asset);
       if(token0.toLowerCase()>=token1.toLowerCase()||![token0.toLowerCase(),token1.toLowerCase()].includes(asset.toLowerCase()))throw new Error('Strategy token pair or input asset is invalid.');
+      if(!(await ledger.supportedAssets(asset)))throw new Error('Execution input asset is not enabled in the Gateway ledger.');
+      const adapterRead=new ethers.Contract(adapterAddress,EXECUTION_ADAPTER_ABI,provider);
+      const pairKey=ethers.keccak256(ethers.AbiCoder.defaultAbiCoder().encode(['bytes32','address','address'],[x.strategyId,token0,token1]));
+      const [pairApproved,poolFeeApproved,swapFeeApproved]=await Promise.all([
+        adapterRead.allowedStrategyPairs(pairKey),adapterRead.allowedPoolFees(Number(x.poolFee)),adapterRead.allowedSwapFees(Number(x.swapFee))
+      ]);
+      if(!pairApproved||!poolFeeApproved||!swapFeeApproved)throw new Error('This token pair or Uniswap fee tier is not approved by the configured execution adapter.');
       const d0=Number(x.decimals0??6),d1=Number(x.decimals1??6),inputDecimals=Number(x.decimals??(asset.toLowerCase()===token0.toLowerCase()?d0:d1));
       const amount=parseAmount($g('gatewayExecAmount').value,inputDecimals);
       const swapAmount=parseAmount($g('gatewayExecSwapAmount').value,inputDecimals);
@@ -331,6 +344,7 @@
         user,asset,amount,strategyId,adapterDataHash:ethers.keccak256(adapterData),nonce,deadline
       };
       const network=await provider.getNetwork();
+      if(x.chainId!==undefined&&BigInt(x.chainId)!==network.chainId)throw new Error('Execution strategy is configured for a different chain.');
       const domain={name:'QROS Execution Router',version:'1',chainId:network.chainId,verifyingContract:routerAddress};
       const types={ExecutionIntent:[
         {name:'user',type:'address'},{name:'asset',type:'address'},{name:'amount',type:'uint256'},
