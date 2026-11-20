@@ -21,6 +21,9 @@ contract QrosQuorumAttestationVerifier is Ownable, IQrosSettlementProofVerifier 
     bytes32 private constant RECOVERY_TYPEHASH = keccak256(
         "Recovery(bytes32 transferId,uint256 sourceChainId,address sourceAsset,uint256 amount,uint256 deadline)"
     );
+    bytes32 private constant CANCEL_TYPEHASH = keccak256(
+        "Cancellation(bytes32 transferId,uint256 sourceChainId,uint256 deadline)"
+    );
 
     mapping(address => bool) public isSigner;
     mapping(bytes32 => bool) public enabledRoute;
@@ -93,16 +96,28 @@ contract QrosQuorumAttestationVerifier is Ownable, IQrosSettlementProofVerifier 
         valid = _hasQuorum(_digest(structHash), signatures);
     }
 
-    function verifyRecovery(bytes32 transferId, bytes calldata proof) external view returns (bool) {
-        (uint256 sourceChainId, address sourceAsset, uint256 amount, uint256 deadline, bytes[] memory signatures) =
+    function verifyRecovery(bytes32 transferId, bytes calldata proof)
+        external view returns (bool valid, uint256 sourceChainId, address sourceAsset, uint256 amount)
+    {
+        uint256 deadline;
+        bytes[] memory signatures;
+        (sourceChainId, sourceAsset, amount, deadline, signatures) =
             abi.decode(proof, (uint256,address,uint256,uint256,bytes[]));
         if (
             transferId == bytes32(0) || sourceChainId != block.chainid ||
             sourceAsset == address(0) || amount == 0 || block.timestamp > deadline
-        ) return false;
+        ) return (false, sourceChainId, sourceAsset, amount);
         bytes32 structHash = keccak256(abi.encode(
             RECOVERY_TYPEHASH, transferId, sourceChainId, sourceAsset, amount, deadline
         ));
+        valid = _hasQuorum(_digest(structHash), signatures);
+    }
+
+    function verifyCancellation(bytes32 transferId, bytes calldata proof) external view returns (bool) {
+        (uint256 sourceChainId, uint256 deadline, bytes[] memory signatures) =
+            abi.decode(proof, (uint256,uint256,bytes[]));
+        if (transferId == bytes32(0) || sourceChainId != block.chainid || block.timestamp > deadline) return false;
+        bytes32 structHash = keccak256(abi.encode(CANCEL_TYPEHASH, transferId, sourceChainId, deadline));
         return _hasQuorum(_digest(structHash), signatures);
     }
 
