@@ -35,9 +35,10 @@ interface IQrosPositionRegistry {
     struct Position {
         address user; uint256 chainId; address positionManager; uint256 tokenId;
         address token0; address token1; uint24 fee; int24 tickLower; int24 tickUpper;
+        address inputAsset; uint256 deployedCostBasis;
         uint128 liquidity; uint8 status; uint64 createdAt;
     }
-    function registerPosition(bytes32 positionId, address user, address manager, uint256 tokenId, address token0, address token1, uint24 fee, int24 tickLower, int24 tickUpper, uint128 liquidity) external;
+    function registerPosition(bytes32 positionId, address user, address manager, uint256 tokenId, address token0, address token1, uint24 fee, int24 tickLower, int24 tickUpper, address inputAsset, uint256 deployedCostBasis, uint128 liquidity) external;
     function updatePosition(bytes32 positionId, uint8 status, uint128 liquidity) external;
     function getPosition(bytes32 positionId) external view returns (Position memory);
 }
@@ -68,6 +69,7 @@ contract UniswapV3LiquidityAdapter is Ownable, ReentrancyGuard, IERC721Receiver,
     event PositionFeesCollected(bytes32 indexed positionId, address indexed user, uint256 amount0, uint256 amount1);
     event PositionLiquidityReduced(bytes32 indexed positionId, address indexed user, uint128 liquidityRemoved, uint256 amount0, uint256 amount1);
     event PositionClosed(bytes32 indexed positionId, address indexed user, uint256 tokenId);
+    event PositionProceedsReturned(bytes32 indexed positionId, address indexed user, address indexed asset, uint256 amount, bool toGateway);
     constructor(address initialOwner, address ledger_) Ownable(initialOwner) { require(ledger_ != address(0), "Invalid ledger"); ledger = ledger_; }
     modifier onlyLedger() { require(msg.sender == ledger, "Only ledger"); _; }
     function configure(address router, address manager, address registry_) external onlyOwner {
@@ -147,7 +149,7 @@ contract UniswapV3LiquidityAdapter is Ownable, ReentrancyGuard, IERC721Receiver,
         IERC20(p.token1).forceApprove(address(positionManager), 0);
         require(liquidity != 0 && positionManager.ownerOf(tokenId) == address(this), "Invalid minted position");
         positionId = keccak256(abi.encode(block.chainid, address(positionManager), tokenId));
-        registry.registerPosition(positionId, user, address(positionManager), tokenId, p.token0, p.token1, p.poolFee, p.tickLower, p.tickUpper, liquidity);
+        registry.registerPosition(positionId, user, address(positionManager), tokenId, p.token0, p.token1, p.poolFee, p.tickLower, p.tickUpper, asset, spent, liquidity);
         positionManager.safeTransferFrom(address(this), user, tokenId);
         require(positionManager.ownerOf(tokenId) == user, "NFT delivery failed");
         returnedAmount = input.balanceOf(address(this)) - initialInput;
@@ -158,20 +160,22 @@ contract UniswapV3LiquidityAdapter is Ownable, ReentrancyGuard, IERC721Receiver,
         if (outputRemainder != 0) output.safeTransfer(user, outputRemainder);
         emit LiquidityPositionCreated(executionId, positionId, user, tokenId, liquidity);
     }
-    /// @notice Collect accrued Uniswap fees. User must approve this adapter for the NFT.
-    function collectFees(bytes32 positionId, uint256 deadline) external nonReentrant returns (uint256 amount0, uint256 amount1) {
+    /// @notice Collect accrued fees to the wallet or, with explicit choice, Gateway available balance.
+    function collectFees(bytes32 positionId, uint256 deadline, bool toGateway) external nonReentrant returns (uint256 amount0, uint256 amount1) {
         require(block.timestamp <= deadline, "Action expired");
         IQrosPositionRegistry.Position memory p = registry.getPosition(positionId);
         require(p.user == msg.sender && p.status == 1, "Position not active or not owner");
         _requireNftApproval(p);
         (amount0, amount1) = positionManager.collect(IUniV3PositionManager.CollectParams({
-            tokenId: p.tokenId, recipient: msg.sender, amount0Max: type(uint128).max, amount1Max: type(uint128).max
+            tokenId: p.tokenId, recipient: address(this), amount0Max: type(uint128).max, amount1Max: type(uint128).max
         }));
+        _returnProceeds(positionId, p, p.token0, amount0, 0, toGateway);
+        _returnProceeds(positionId, p, p.token1, amount1, 0, toGateway);
         emit PositionFeesCollected(positionId, msg.sender, amount0, amount1);
     }
 
-    /// @notice Reduce liquidity while keeping the NFT active. User must approve this adapter.
-    function reduceLiquidity(bytes32 positionId, uint128 liquidityToRemove, uint256 amount0Min, uint256 amount1Min, uint256 deadline)
+    /// @notice Reduce liquidity and explicitly choose wallet or Gateway for returned tokens.
+    function reduceLiquidity(bytes32 positionId, uint128 liquidityToRemove, uint256 amount0Min, uint256 amount1Min, uint256 deadline, bool toGateway)
         external nonReentrant returns (uint256 amount0, uint256 amount1)
     {
         require(block.timestamp <= deadline, "Action expired");
@@ -184,15 +188,19 @@ contract UniswapV3LiquidityAdapter is Ownable, ReentrancyGuard, IERC721Receiver,
             amount1Min: amount1Min, deadline: deadline
         }));
         positionManager.collect(IUniV3PositionManager.CollectParams({
-            tokenId: p.tokenId, recipient: msg.sender, amount0Max: type(uint128).max, amount1Max: type(uint128).max
+            tokenId: p.tokenId, recipient: address(this), amount0Max: type(uint128).max, amount1Max: type(uint128).max
         }));
-        uint128 remaining = p.liquidity - liquidityToRemove;
-        registry.updatePosition(positionId, 1, remaining);
+        uint256 costReduction = liquidityToRemove == p.liquidity
+            ? p.deployedCostBasis
+            : (p.deployedCostBasis * uint256(liquidityToRemove)) / uint256(p.liquidity);
+        registry.updatePosition(positionId, 1, p.liquidity - liquidityToRemove);
+        _returnProceeds(positionId, p, p.token0, amount0, costReduction, toGateway);
+        _returnProceeds(positionId, p, p.token1, amount1, 0, toGateway);
         emit PositionLiquidityReduced(positionId, msg.sender, liquidityToRemove, amount0, amount1);
     }
 
-    /// @notice Fully close a position, collect proceeds/fees, burn NFT and update registry.
-    function closePosition(bytes32 positionId, uint256 amount0Min, uint256 amount1Min, uint256 deadline)
+    /// @notice Close the NFT position, collect all proceeds and fees, and reconcile cost basis.
+    function closePosition(bytes32 positionId, uint256 amount0Min, uint256 amount1Min, uint256 deadline, bool toGateway)
         external nonReentrant returns (uint256 amount0, uint256 amount1)
     {
         require(block.timestamp <= deadline, "Action expired");
@@ -206,11 +214,37 @@ contract UniswapV3LiquidityAdapter is Ownable, ReentrancyGuard, IERC721Receiver,
             }));
         }
         positionManager.collect(IUniV3PositionManager.CollectParams({
-            tokenId: p.tokenId, recipient: msg.sender, amount0Max: type(uint128).max, amount1Max: type(uint128).max
+            tokenId: p.tokenId, recipient: address(this), amount0Max: type(uint128).max, amount1Max: type(uint128).max
         }));
         positionManager.burn(p.tokenId);
         registry.updatePosition(positionId, 3, 0);
+        _returnProceeds(positionId, p, p.token0, amount0, p.deployedCostBasis, toGateway);
+        _returnProceeds(positionId, p, p.token1, amount1, 0, toGateway);
         emit PositionClosed(positionId, msg.sender, p.tokenId);
+    }
+
+    function _returnProceeds(
+        bytes32 positionId, IQrosPositionRegistry.Position memory p,
+        address asset, uint256 amount, uint256 costReduction, bool toGateway
+    ) internal {
+        if (toGateway) {
+            if (amount != 0) IERC20(asset).safeTransfer(ledger, amount);
+            (bool ok, bytes memory result) = ledger.call(abi.encodeWithSignature(
+                "creditPositionProceeds(address,address,uint256,address,uint256)",
+                p.user, asset, amount, p.inputAsset, costReduction
+            ));
+            require(ok, result.length == 0 ? "Gateway reconciliation failed" : string(result));
+        } else {
+            if (amount != 0) IERC20(asset).safeTransfer(p.user, amount);
+            if (costReduction != 0) {
+                (bool ok, bytes memory result) = ledger.call(abi.encodeWithSignature(
+                    "releaseDeployedCostBasis(address,address,uint256)",
+                    p.user, p.inputAsset, costReduction
+                ));
+                require(ok, result.length == 0 ? "Gateway cost basis release failed" : string(result));
+            }
+        }
+        if (amount != 0 || costReduction != 0) emit PositionProceedsReturned(positionId, p.user, asset, amount, toGateway);
     }
 
     function _requireNftApproval(IQrosPositionRegistry.Position memory p) internal view {
