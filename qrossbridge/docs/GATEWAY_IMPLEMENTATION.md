@@ -227,3 +227,17 @@ The existing QMS hub-and-spoke bridge transfers native QMS and mints/burns wQMS.
 ### Safety boundary
 
 No route should be enabled until both chain deployments, token addresses/decimals, verifier signer set, liquidity inventory, treasury, ledger adapter and coordinator approval have been independently verified. No private key belongs in the frontend. This implementation is a testnet reference for an explicitly trusted validator model, not audited production infrastructure.
+
+
+### Added integration coverage (not yet executed)
+
+`test/settlement-adapter.js` now exercises two isolated local chains and covers:
+- Gateway deposit and transfer request;
+- source escrow handoff through the coordinator;
+- destination proof validation and ledger credit;
+- duplicate destination proof rejection;
+- source escrow release after a separate destination-completion quorum;
+- pre-dispatch cancellation;
+- post-dispatch source-token recovery.
+
+The package test command includes this suite after the existing bridge, dApp and Gateway ledger suites. The tests have been authored but not run; artifacts must be rebuilt before the consolidated validation pass.
