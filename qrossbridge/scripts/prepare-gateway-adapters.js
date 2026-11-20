@@ -214,7 +214,10 @@ async function main() {
     }
 
     if (!same(await ledger.settlementAdapter(), ethers.ZeroAddress)) {
-      throw new Error(id + ' ledger already has a settlement adapter configured; refusing to replace it automatically.');
+      throw new Error(id + ' ledger already has a default settlement adapter configured; refusing to alter it automatically.');
+    }
+    if (!same(await ledger.settlementAdapters(localToken), ethers.ZeroAddress)) {
+      throw new Error(id + ' wQMS already has an asset-specific settlement adapter configured; refusing to replace it automatically.');
     }
     if (await coordinator.approvedAdapters(adapterResult.address)) {
       throw new Error(id + ' coordinator already approves the new adapter; this preparation script will not activate it.');
