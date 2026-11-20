@@ -12,7 +12,8 @@
     "execution-relayer": "node --env-file=.env relayer/execution-runner.js",
     "deploy-execution": "node --env-file=.env scripts/deploy-execution.js",
     "deploy-qms-gateway-adapter": "node --env-file=.env scripts/deploy-qms-gateway-adapter.js",
-    "test:qms-adapter": "node test/qms-gateway-adapter.js"
+    "test:qms-adapter": "node test/qms-gateway-adapter.js",
+    "orchestrate-qms-gateway": "node --env-file=.env scripts/orchestrate-qms-gateway.js"
   },
   "engines": {
     "node": ">=20"
