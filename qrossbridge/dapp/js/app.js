@@ -1,7 +1,7 @@
 'use strict';
 /* QROS Bridge: app shell. Router, header, navigation, settings and startup. */
 
-const VIEWS=['home','bridge','execution','activity','networks','docs'];
+const VIEWS=['home','bridge','execution','gateway','activity','networks','docs'];
 const SLIP=[['auto','Auto'],['50','0.5%'],['100','1%'],['300','3%']];
 const SOURCE_URL='https://github.com/fishacrypt/qrossbridge';
 /* ---------- settings ---------- */
@@ -115,6 +115,7 @@ function enterView(v){
   if(v==='home')renderHome();
   else if(v==='bridge'){renderRouteInfo();refreshRouteInfo();loadClaimable()}
   else if(v==='execution'){renderExecutionPage()}
+  else if(v==='gateway'){if(typeof qrosGatewayRefresh==='function')qrosGatewayRefresh()}
   else if(v==='activity'){renderActivity();loadClaimable();trackAll()}
   else if(v==='networks'){refreshNetStatus()}
   else if(v==='docs'){renderDocs();loadBridgeInfo(QMS.id).then(()=>{if(currentView==='docs')renderDocs()}).catch(()=>{})}
