@@ -9,9 +9,10 @@ interface IQrosQmsBridgeProofVerifier {
         uint256 destinationChainId,
         address sourceBridge,
         address destinationBridge,
+        address sourceAdapter,
+        address destinationAdapter,
         address sourceToken,
         address destinationToken,
-        address destinationAdapter,
         address beneficiary,
         uint256 amount,
         bytes32 bridgeMessageId
