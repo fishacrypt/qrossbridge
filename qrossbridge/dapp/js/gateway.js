@@ -100,8 +100,9 @@
   let pendingTransferId=null;
   function configuredRoutes(){
     const c=cfg();
-    return Array.isArray(c.routes)?c.routes.filter(r=>r.sourceAsset&&r.destinationAsset&&r.adapter&&Number(r.destinationChainId)>0&&ethers.isAddress(r.sourceAsset)&&ethers.isAddress(r.destinationAsset)&&ethers.isAddress(r.adapter)):[];
+    return Array.isArray(c.routes)?c.routes.filter(r=>r.sourceAsset&&r.destinationAsset&&r.adapter&&Number(r.destinationChainId)>0&&ethers.isAddress(r.sourceAsset)&&ethers.isAddress(r.destinationAsset)&&ethers.isAddress(r.adapter)&&(!r.destinationLedger||ethers.isAddress(r.destinationLedger))):[];
   }
+  const routeKey=r=>r.id||[r.destinationChainId,r.destinationAsset,r.destinationLedger||r.recipient||'',r.adapter].join(':');
   function renderTransferOptions(){
     const routes=configuredRoutes(),assetSelect=$g('gatewayTransferAsset'),routeSelect=$g('gatewayTransferRoute'),destSelect=$g('gatewayTransferDestinationAsset');
     if(!assetSelect||!routeSelect||!destSelect)return;
@@ -110,7 +111,7 @@
     assetSelect.replaceChildren();routeSelect.replaceChildren();destSelect.replaceChildren();
     for(const a of assets){if(!ethers.isAddress(a.address||''))continue;const o=document.createElement('option');o.value=a.address;o.textContent=(a.symbol||'Asset')+' · '+a.address.slice(0,6)+'…';assetSelect.append(o)}
     const filtered=routes.filter(r=>!assetSelect.value||r.sourceAsset.toLowerCase()===assetSelect.value.toLowerCase());
-    for(const r of filtered){const o=document.createElement('option');o.value=r.id||[r.destinationChainId,r.destinationAsset,r.adapter].join(':');o.textContent=r.label||('Chain '+r.destinationChainId);routeSelect.append(o)}
+    for(const r of filtered){const o=document.createElement('option');o.value=routeKey(r);o.textContent=r.label||('Chain '+r.destinationChainId);routeSelect.append(o)}
     if([...assetSelect.options].some(o=>o.value.toLowerCase()===oldAsset.toLowerCase()))assetSelect.value=oldAsset;
     const selected=routes.find(r=>(r.id||[r.destinationChainId,r.destinationAsset,r.adapter].join(':'))===routeSelect.value)||filtered[0];
     if(selected){const o=document.createElement('option');o.value=selected.destinationAsset;o.textContent=selected.destinationSymbol||selected.destinationAsset;destSelect.append(o)}
