@@ -75,20 +75,21 @@ contract QrosQuorumAttestationVerifier is Ownable, IQrosSettlementProofVerifier 
 
     function verifyDelivery(bytes32 transferId, bytes calldata proof)
         external view returns (
-            bool valid, uint256 sourceChainId, address recipient, address destinationAsset, uint256 amount
+            bool valid, uint256 sourceChainId, address sourceAsset, address recipient,
+            address destinationAsset, uint256 amount
         )
     {
         uint256 destinationChainId;
         uint256 deadline;
         bytes[] memory signatures;
-        (sourceChainId, destinationChainId, recipient, destinationAsset, amount, deadline, signatures) =
-            abi.decode(proof, (uint256,uint256,address,address,uint256,uint256,bytes[]));
+        (sourceChainId, destinationChainId, sourceAsset, recipient, destinationAsset, amount, deadline, signatures) =
+            abi.decode(proof, (uint256,uint256,address,address,address,uint256,uint256,bytes[]));
 
         if (
             transferId == bytes32(0) || sourceChainId == 0 ||
             destinationChainId != block.chainid || sourceChainId == destinationChainId ||
-            sourceAsset == address(0) || recipient == address(0) || destinationAsset == address(0) || amount == 0 ||
-            block.timestamp > deadline ||
+            sourceAsset == address(0) || recipient == address(0) ||
+            destinationAsset == address(0) || amount == 0 || block.timestamp > deadline ||
             !enabledRoute[routeKey(sourceChainId, destinationChainId, sourceAsset, destinationAsset)]
         ) return (false, sourceChainId, sourceAsset, recipient, destinationAsset, amount);
 
