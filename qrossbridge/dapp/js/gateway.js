@@ -113,7 +113,7 @@
     const filtered=routes.filter(r=>!assetSelect.value||r.sourceAsset.toLowerCase()===assetSelect.value.toLowerCase());
     for(const r of filtered){const o=document.createElement('option');o.value=routeKey(r);o.textContent=r.label||('Chain '+r.destinationChainId);routeSelect.append(o)}
     if([...assetSelect.options].some(o=>o.value.toLowerCase()===oldAsset.toLowerCase()))assetSelect.value=oldAsset;
-    const selected=routes.find(r=>(r.id||[r.destinationChainId,r.destinationAsset,r.adapter].join(':'))===routeSelect.value)||filtered[0];
+    const selected=routes.find(r=>routeKey(r)===routeSelect.value)||filtered[0];
     if(selected){const o=document.createElement('option');o.value=selected.destinationAsset;o.textContent=selected.destinationSymbol||selected.destinationAsset;destSelect.append(o)}
     else{const o=document.createElement('option');o.textContent='No configured route';o.value='';destSelect.append(o)}
   }
@@ -122,7 +122,7 @@
     const msg=$g('gatewayTransferMessage');if(msg)msg.textContent='';
     try{
       const routes=configuredRoutes(),asset=selectedAsset('gatewayTransferAsset');
-      const route=routes.find(r=>(r.id||[r.destinationChainId,r.destinationAsset,r.adapter].join(':'))===$g('gatewayTransferRoute')?.value);
+      const route=routes.find(r=>routeKey(r)===$g('gatewayTransferRoute')?.value);
       if(!asset||!route)throw new Error('No verified Gateway transfer route is configured for this source asset.');
       const amount=parseAmount($g('gatewayTransferAmount')?.value,Number(asset.decimals??6));
       const handoff=Boolean(route.destinationLedger&&ethers.isAddress(route.destinationLedger));
@@ -138,12 +138,16 @@
       const coordinator=new ethers.Contract(c.coordinator,COORDINATOR_ABI,signer);
       status('Review transfer request in wallet…','loading');
       message('This reserves the selected amount in Gateway. Settlement initiation requires a separate wallet confirmation.');
-      const tx=await coordinator.requestTransfer(id,asset.address,amount,Number(route.destinationChainId),route.destinationAsset,recipient,route.adapter);
+      const tx=handoff
+        ? await coordinator.requestGatewayHandoff(id,asset.address,amount,Number(route.destinationChainId),route.destinationAsset,route.destinationLedger,route.adapter)
+        : await coordinator.requestTransfer(id,asset.address,amount,Number(route.destinationChainId),route.destinationAsset,recipient,route.adapter);
       if(msg)msg.textContent='Transfer request submitted: '+tx.hash;
       await tx.wait();
       pendingTransferId=id;
       if($g('gatewayInitiateButton'))$g('gatewayInitiateButton').hidden=false;
-      if(msg)msg.textContent='Transfer reserved on Gateway. Review and initiate settlement as a separate transaction.';
+      if(msg)msg.textContent=handoff
+        ? 'Cross-chain Gateway handoff reserved. Your same wallet address will be credited on the destination chain after verified settlement. Initiate settlement as a separate transaction.'
+        : 'Transfer reserved on Gateway. Review and initiate settlement as a separate transaction.';
       $g('gatewayTransferAmount').value='';await refresh();
       await refreshTransferHistory();
     }catch(e){if(msg)msg.textContent=e?.shortMessage||e?.reason||e?.message||'Transfer request failed.';status('Transfer not requested','error')}
