@@ -11,3 +11,7 @@ relayer-state.json
 
 execution-relayer-state.json
 
+# Local Gateway deployment configuration and resumable state
+gateway-core-deploy.config.json
+.gateway-core-deployments.pending.json
+.gateway-core-deployments.pending.json.tmp

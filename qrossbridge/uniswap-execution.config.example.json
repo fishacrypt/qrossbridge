@@ -1,0 +1,9 @@
+{
+  "swapRouter": "",
+  "positionManager": "",
+  "token0": "",
+  "token1": "",
+  "poolFee": 500,
+  "swapFee": 500,
+  "strategyId": "0x0000000000000000000000000000000000000000000000000000000000000001"
+}

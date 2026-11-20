@@ -1,0 +1,7 @@
+{
+  "threshold": 1,
+  "chains": [
+    { "chainId": 19480, "owner": "", "execution": false },
+    { "chainId": 84532, "owner": "", "execution": true }
+  ]
+}

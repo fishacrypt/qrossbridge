@@ -5,12 +5,19 @@
   "description": "QMS Testnet <-> Sepolia / Base Sepolia / Arbitrum Sepolia / OP Sepolia bridge (native QMS and WQMS)",
   "scripts": {
     "compile": "node scripts/compile.js",
-    "test": "node test/e2e.js && node test/dapp-e2e.js",
+    "test": "node test/e2e.js && node test/dapp-e2e.js && node test/gateway-ledger.js && node test/settlement-adapter.js && node test/execution-router.js && node test/qms-gateway-adapter.js",
     "deploy": "node --env-file=.env scripts/deploy.js",
     "relayer": "node --env-file=.env relayer/run.js",
     "apply-config": "node scripts/apply-config.js",
     "execution-relayer": "node --env-file=.env relayer/execution-runner.js",
-    "deploy-execution": "node --env-file=.env scripts/deploy-execution.js"
+    "deploy-execution": "node --env-file=.env scripts/deploy-execution.js",
+    "deploy-qms-gateway-adapter": "node --env-file=.env scripts/deploy-qms-gateway-adapter.js",
+    "test:qms-adapter": "node test/qms-gateway-adapter.js",
+    "orchestrate-qms-gateway": "node --env-file=.env scripts/orchestrate-qms-gateway.js",
+    "deploy-gateway-core": "node --env-file=.env scripts/deploy-gateway-core.js",
+    "prepare-gateway-adapters": "node --env-file=.env scripts/prepare-gateway-adapters.js",
+    "activate-qms-gateway": "node --env-file=.env scripts/activate-qms-gateway.js",
+    "configure-uniswap-execution": "node --env-file=.env scripts/configure-uniswap-execution.js"
   },
   "engines": {
     "node": ">=20"
