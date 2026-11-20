@@ -461,15 +461,19 @@
         if((!supported0||!supported1)&&action!=='collect')throw new Error('Both position tokens must be enabled in Gateway before returning principal proceeds there. Choose wallet delivery or enable both assets.');
       }
       const deadline=BigInt(Math.floor(Date.now()/1000)+600);
+      const min0Raw=($g('positionMin0_'+positionId)?.value||'0').trim();
+      const min1Raw=($g('positionMin1_'+positionId)?.value||'0').trim();
+      if(!/^\d+$/.test(min0Raw)||!/^\d+$/.test(min1Raw))throw new Error('Minimum outputs must be non-negative raw token units.');
+      const min0=BigInt(min0Raw),min1=BigInt(min1Raw);
       let tx;
       if(action==='collect')tx=await adapter.collectFees(positionId,deadline,toGateway);
       else if(action==='reduce'){
         const raw=($g('positionReduce_'+positionId)?.value||'').trim();
         if(!/^\d+$/.test(raw)||BigInt(raw)<=0n||BigInt(raw)>p.liquidity)throw new Error('Enter a valid liquidity amount not exceeding the position liquidity.');
-        tx=await adapter.reduceLiquidity(positionId,BigInt(raw),0,0,deadline,toGateway);
+        tx=await adapter.reduceLiquidity(positionId,BigInt(raw),min0,min1,deadline,toGateway);
       }else if(action==='close'){
         if(!window.confirm('Close this Uniswap position, collect all proceeds and burn its NFT?'))return;
-        tx=await adapter.closePosition(positionId,0,0,deadline,toGateway);
+        tx=await adapter.closePosition(positionId,min0,min1,deadline,toGateway);
       }
       if(!tx)throw new Error('No position action selected.');
       if(root)root.setAttribute('aria-busy','true');
