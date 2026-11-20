@@ -23,6 +23,16 @@ const RECOVERY_TYPES = {
     { name: 'deadline', type: 'uint256' }
   ]
 };
+const OUTBOUND_SETTLED_TYPES = {
+  OutboundSettled: [
+    { name: 'transferId', type: 'bytes32' },
+    { name: 'sourceChainId', type: 'uint256' },
+    { name: 'destinationChainId', type: 'uint256' },
+    { name: 'sourceAsset', type: 'address' },
+    { name: 'amount', type: 'uint256' },
+    { name: 'deadline', type: 'uint256' }
+  ]
+};
 const CANCELLATION_TYPES = {
   Cancellation: [
     { name: 'transferId', type: 'bytes32' },
@@ -85,4 +95,16 @@ async function cancellationProof({ wallets, verifier, transferId, sourceChainId,
   );
 }
 
-module.exports = { deliveryProof, recoveryProof, cancellationProof };
+async function outboundSettlementProof({ wallets, verifier, transferId, sourceChainId, destinationChainId, sourceAsset, amount, deadline }) {
+  const value = {
+    transferId, sourceChainId: BigInt(sourceChainId), destinationChainId: BigInt(destinationChainId),
+    sourceAsset: ethers.getAddress(sourceAsset), amount: BigInt(amount), deadline: BigInt(deadline)
+  };
+  const sigs = await signatures(wallets, domain(sourceChainId, verifier), OUTBOUND_SETTLED_TYPES, value);
+  return ethers.AbiCoder.defaultAbiCoder().encode(
+    ['uint256','uint256','address','uint256','uint256','bytes[]'],
+    [value.sourceChainId,value.destinationChainId,value.sourceAsset,value.amount,value.deadline,sigs]
+  );
+}
+
+module.exports = { deliveryProof, recoveryProof, cancellationProof, outboundSettlementProof };
