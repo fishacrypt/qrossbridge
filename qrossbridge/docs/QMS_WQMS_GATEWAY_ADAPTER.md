@@ -46,7 +46,7 @@ Deploy one adapter and one QMS bridge attestation verifier on each participating
 - local bridge endpoint address (Hub on QMS, Spoke on remote chain);
 - local wQMS token address (Hub wQMS on QMS, Spoke token on remote chain).
 
-Then configure each adapter's remote route using the other chain's bridge endpoint, wQMS token and QROS adapter address. For a given source/destination pair, configure the matching route on both adapters and configure the QMS bridge verifier's route on the destination chain with:
+Then configure each adapter's remote route using the other chain's bridge endpoint, wQMS token, QROS adapter address and destination Gateway ledger address. For a given source/destination pair, configure the matching route on both adapters and configure the QMS bridge verifier's route on the destination chain with:
 - source and destination chain IDs;
 - source and destination bridge addresses;
 - source and destination wQMS token addresses;
