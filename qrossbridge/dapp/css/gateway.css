@@ -33,3 +33,7 @@
 .gateway-form input,.gateway-form select{width:100%;min-width:0;min-height:42px;padding:9px 11px;border:1px solid var(--line2);border-radius:10px;background:var(--bg);color:var(--text);font:inherit;font-size:13px}
 .gateway-form button{width:100%;margin-top:3px}
 .gateway-form button:disabled{opacity:.55;cursor:not-allowed}
+
+#gatewayTransferHistory{display:grid;gap:8px;margin-top:12px}
+#gatewayTransferHistory .gateway-asset{grid-template-columns:minmax(0,.7fr) minmax(0,1fr) minmax(0,1.4fr)}
+#gatewayTransferHistory .gateway-asset span{text-align:left;white-space:normal}
