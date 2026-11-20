@@ -152,8 +152,8 @@ contract QrosQmsBridgeAdapter is QrosSettlementAdapterBase {
         address expectedDestinationBridge = localBridge;
         address expectedDestinationToken = localToken;
 
-        return valid && provedSourceChain == sourceChainId && destinationChain == block.chainid &&
-            sourceRoute.gatewayLedger == address(ledger) &&
+        return valid && sourceRoute.enabled && provedSourceChain == sourceChainId &&
+            destinationChain == block.chainid && sourceRoute.gatewayLedger == address(ledger) &&
             sourceBridge == expectedSourceBridge && destinationBridge == expectedDestinationBridge &&
             sourceAdapter == sourceRoute.adapter && destinationToken == asset &&
             sourceToken == expectedSourceToken &&
