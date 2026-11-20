@@ -5,7 +5,11 @@
     'function getBalance(address user,address asset) view returns (uint256 available,uint256 inTransit,uint256 reserved,uint256 deployed)',
     'function deposit(address asset,uint256 amount) returns (uint256 received)',
     'function withdraw(address asset,uint256 amount,address recipient)',
-    'function supportedAssets(address asset) view returns (bool)'
+    'function supportedAssets(address asset) view returns (bool)',
+    'event OutboundTransferFinalized(bytes32 indexed transferId,address indexed adapter,uint256 amount)',
+    'event OutboundTransferCancelled(bytes32 indexed transferId,address indexed user,uint256 amount)',
+    'event OutboundTransferRecovered(bytes32 indexed transferId,address indexed user,uint256 amount)',
+    'event InboundTransferCredited(bytes32 indexed transferId,address indexed user,address indexed asset,uint256 amount,uint256 sourceChainId)'
   ];
   const TOKEN_ABI=['function allowance(address owner,address spender) view returns (uint256)','function approve(address spender,uint256 amount) returns (bool)','function decimals() view returns (uint8)','function balanceOf(address owner) view returns (uint256)'];
   const cfg=()=>window.QROS_GATEWAY_CONFIG||{};
