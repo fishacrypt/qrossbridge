@@ -5,7 +5,7 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "../interfaces/IQrosSettlementProofVerifier.sol";
 
-/// @notice Threshold EIP-712 attestations for the existing QROS hub-and-spoke bridge.
+/// @notice Threshold EIP-712 attestations for QROS cross-chain settlement routes.
 /// @dev This is an explicit validator trust model, NOT a trustless light client.
 ///      Validators must independently reconcile source and destination chain events.
 contract QrosQuorumAttestationVerifier is Ownable, IQrosSettlementProofVerifier {
@@ -35,7 +35,7 @@ contract QrosQuorumAttestationVerifier is Ownable, IQrosSettlementProofVerifier 
 
     event SignerUpdated(address indexed signer, bool enabled);
     event ThresholdUpdated(uint256 threshold);
-    event RouteUpdated(uint256 indexed sourceChainId, uint256 indexed destinationChainId, address indexed destinationAsset, bool enabled);
+    event RouteUpdated(uint256 indexed sourceChainId, uint256 indexed destinationChainId, address indexed sourceAsset, address destinationAsset, bool enabled);
 
     constructor(address initialOwner, uint256 threshold_) Ownable(initialOwner) {
         require(initialOwner != address(0) && threshold_ != 0, "Invalid config");
@@ -64,7 +64,7 @@ contract QrosQuorumAttestationVerifier is Ownable, IQrosSettlementProofVerifier 
         require(sourceChainId != 0 && destinationChainId != 0 && sourceChainId != destinationChainId, "Invalid chains");
         require(sourceAsset != address(0) && destinationAsset != address(0), "Zero asset");
         enabledRoute[routeKey(sourceChainId, destinationChainId, sourceAsset, destinationAsset)] = enabled;
-        emit RouteUpdated(sourceChainId, destinationChainId, destinationAsset, enabled);
+        emit RouteUpdated(sourceChainId, destinationChainId, sourceAsset, destinationAsset, enabled);
     }
 
     function routeKey(uint256 sourceChainId, uint256 destinationChainId, address sourceAsset, address destinationAsset)
