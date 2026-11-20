@@ -187,9 +187,11 @@ contract UniswapV3LiquidityAdapter is Ownable, ReentrancyGuard, IERC721Receiver,
             tokenId: p.tokenId, liquidity: liquidityToRemove, amount0Min: amount0Min,
             amount1Min: amount1Min, deadline: deadline
         }));
-        positionManager.collect(IUniV3PositionManager.CollectParams({
+        (uint256 fees0, uint256 fees1) = positionManager.collect(IUniV3PositionManager.CollectParams({
             tokenId: p.tokenId, recipient: address(this), amount0Max: type(uint128).max, amount1Max: type(uint128).max
         }));
+        amount0 += fees0;
+        amount1 += fees1;
         uint256 costReduction = liquidityToRemove == p.liquidity
             ? p.deployedCostBasis
             : (p.deployedCostBasis * uint256(liquidityToRemove)) / uint256(p.liquidity);
@@ -213,9 +215,11 @@ contract UniswapV3LiquidityAdapter is Ownable, ReentrancyGuard, IERC721Receiver,
                 amount1Min: amount1Min, deadline: deadline
             }));
         }
-        positionManager.collect(IUniV3PositionManager.CollectParams({
+        (uint256 fees0, uint256 fees1) = positionManager.collect(IUniV3PositionManager.CollectParams({
             tokenId: p.tokenId, recipient: address(this), amount0Max: type(uint128).max, amount1Max: type(uint128).max
         }));
+        amount0 += fees0;
+        amount1 += fees1;
         positionManager.burn(p.tokenId);
         registry.updatePosition(positionId, 3, 0);
         _returnProceeds(positionId, p, p.token0, amount0, p.deployedCostBasis, toGateway);
@@ -227,6 +231,7 @@ contract UniswapV3LiquidityAdapter is Ownable, ReentrancyGuard, IERC721Receiver,
         bytes32 positionId, IQrosPositionRegistry.Position memory p,
         address asset, uint256 amount, uint256 costReduction, bool toGateway
     ) internal {
+        if (amount == 0 && costReduction == 0) return;
         if (toGateway) {
             if (amount != 0) IERC20(asset).safeTransfer(ledger, amount);
             (bool ok, bytes memory result) = ledger.call(abi.encodeWithSignature(
