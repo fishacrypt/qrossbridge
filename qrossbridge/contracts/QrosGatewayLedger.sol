@@ -77,7 +77,9 @@ contract QrosGatewayLedger is Ownable, Pausable, ReentrancyGuard {
     event ExecutionReserved(bytes32 indexed executionId, address indexed user, address indexed asset, uint256 amount, bytes32 strategyId);
     event ExecutionCompleted(bytes32 indexed executionId, address indexed adapter, uint256 amount);
     event ExecutionReleased(bytes32 indexed executionId, address indexed user, uint256 amount);
-    event ExecutionSettled(bytes32 indexed executionId, uint256 spent, uint256 returnedToAvailable, bytes32 positionId);\n    event PositionProceedsCredited(address indexed user, address indexed asset, uint256 amount, address indexed deployedAsset, uint256 deployedReduction);\n    event DeployedCostBasisReleased(address indexed user, address indexed asset, uint256 amount);
+    event ExecutionSettled(bytes32 indexed executionId, uint256 spent, uint256 returnedToAvailable, bytes32 positionId);
+    event PositionProceedsCredited(address indexed user, address indexed asset, uint256 amount, address indexed deployedAsset, uint256 deployedReduction);
+    event DeployedCostBasisReleased(address indexed user, address indexed asset, uint256 amount);
 
     modifier onlySettlementAdapter() {
         require(msg.sender == settlementAdapter && settlementAdapter != address(0), "Not settlement adapter");
