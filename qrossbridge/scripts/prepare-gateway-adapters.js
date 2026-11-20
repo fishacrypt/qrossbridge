@@ -73,7 +73,7 @@ async function deployOrReuse({ provider, wallet, owner, chainId, component, cont
   await assertOwner(instance, owner, chainId + ' ' + component);
   const saved = {
     contractName, address, transactionHash: receipt.hash, blockNumber: receipt.blockNumber,
-    owner, deployer: wallet.address, chainId, deployedAt: new Date().toISOString()
+    owner, deployer: await wallet.getAddress(), chainId, deployedAt: new Date().toISOString()
   };
   console.log('  deployed ' + component + ': ' + address);
   return { address, contract: instance, record: saved };
@@ -86,8 +86,9 @@ async function main() {
     throw new Error('Gateway core and bridge manifests must both identify QMS Testnet (19480) as Hub.');
   }
 
-  const qmsKey = keyOf(process.env.QMS_OWNER_KEY, 'QMS_OWNER_KEY');
-  const baseKey = keyOf(process.env.BASE_OWNER_KEY, 'BASE_OWNER_KEY');
+  const normalizeKey = (value, label) => keyOf(value && !value.startsWith('0x') ? '0x' + value : value, label);
+  const qmsKey = normalizeKey(process.env.QMS_OWNER_KEY, 'QMS_OWNER_KEY');
+  const baseKey = normalizeKey(process.env.BASE_OWNER_KEY, 'BASE_OWNER_KEY');
   const bridgeOwner = addr(bridges.owner, 'deployments.json owner');
   const configs = [
     { id: HUB_ID, key: qmsKey, label: 'QMS' },
@@ -169,6 +170,16 @@ async function main() {
       contractName: 'QrosQmsBridgeAttestationVerifier',
       args: [owner, 1], record: existing.bridgeVerifier
     });
+    // Persist each deployment independently so a failure between deployments is resumable.
+    output.chains[idKey] = {
+      ...(output.chains[idKey] || {}),
+      name: chains[id].name, role: id === HUB_ID ? 'hub' : 'spoke',
+      owner, bridgeOwner, bridge: localBridge, token: localToken,
+      gatewayLedger: ledgerAddress, transferCoordinator: coordinatorAddress,
+      settlementVerifier: settlementVerifierAddress,
+      bridgeVerifier: verifierResult.record
+    };
+    writeJson(OUTPUT_FILE, output);
     const adapterResult = await deployOrReuse({
       provider, wallet, owner, chainId: id, component: 'qmsBridgeAdapter',
       contractName: 'QrosQmsBridgeAdapter',
