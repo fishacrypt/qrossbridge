@@ -13,4 +13,7 @@ interface IQrosSettlementProofVerifier {
 
     function verifyCancellation(bytes32 transferId, bytes calldata proof)
         external view returns (bool valid);
+
+    function verifyOutboundSettlement(bytes32 transferId, bytes calldata proof)
+        external view returns (bool valid, uint256 destinationChainId, address sourceAsset, uint256 amount);
 }
