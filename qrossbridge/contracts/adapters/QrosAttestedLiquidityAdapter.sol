@@ -22,6 +22,8 @@ contract QrosAttestedLiquidityAdapter is QrosSettlementAdapterBase {
 
     mapping(bytes32 => EscrowedTransfer) public escrowed;
     mapping(bytes32 => bool) public outboundRouteEnabled;
+    address public settlementTreasury;
+    mapping(bytes32 => bool) public outboundSettled;
 
     event OutboundLiquidityLocked(
         bytes32 indexed transferId, address indexed sourceAsset, uint256 amount,
@@ -30,6 +32,8 @@ contract QrosAttestedLiquidityAdapter is QrosSettlementAdapterBase {
     event DestinationLiquidityReleased(bytes32 indexed transferId, address indexed asset, uint256 amount);
     event SourceLiquidityRefunded(bytes32 indexed transferId, address indexed asset, uint256 amount);
     event OutboundRouteUpdated(bytes32 indexed routeId, bool enabled);
+    event SettlementTreasuryUpdated(address indexed treasury);
+    event SourceEscrowSettled(bytes32 indexed transferId, address indexed treasury, address indexed asset, uint256 amount);
 
     constructor(address initialOwner, address ledger_, address verifier_, address coordinator_)
         QrosSettlementAdapterBase(initialOwner, ledger_, verifier_, coordinator_) {}
@@ -38,6 +42,31 @@ contract QrosAttestedLiquidityAdapter is QrosSettlementAdapterBase {
         public pure returns (bytes32)
     {
         return keccak256(abi.encode(sourceAsset, destinationChainId, destinationAsset));
+    }
+
+    function setSettlementTreasury(address treasury) external onlyOwner {
+        require(treasury != address(0), "Zero treasury");
+        settlementTreasury = treasury;
+        emit SettlementTreasuryUpdated(treasury);
+    }
+
+    /// @notice Release source escrow only after quorum attests destination completion.
+    function settleOutbound(bytes32 transferId, bytes calldata proof) external nonReentrant {
+        require(!outboundSettled[transferId], "Already settled");
+        EscrowedTransfer memory item = escrowed[transferId];
+        require(item.asset != address(0) && item.amount != 0, "Unknown escrow");
+        (bool valid, uint256 destinationChainId, address sourceAsset, uint256 amount) =
+            verifier.verifyOutboundSettlement(transferId, proof);
+        require(
+            valid && destinationChainId == item.destinationChainId &&
+            sourceAsset == item.asset && amount == item.amount,
+            "Settlement proof mismatch"
+        );
+        require(settlementTreasury != address(0), "Treasury not configured");
+        outboundSettled[transferId] = true;
+        delete escrowed[transferId];
+        IERC20(item.asset).safeTransfer(settlementTreasury, item.amount);
+        emit SourceEscrowSettled(transferId, settlementTreasury, item.asset, item.amount);
     }
 
     function setOutboundRoute(address sourceAsset, uint256 destinationChainId, address destinationAsset, bool enabled)
@@ -78,7 +107,7 @@ contract QrosAttestedLiquidityAdapter is QrosSettlementAdapterBase {
         internal override
     {
         EscrowedTransfer memory item = escrowed[transferId];
-        require(item.asset == asset && item.amount != 0, "Escrow record mismatch");
+        require(!outboundSettled[transferId] && item.asset == asset && item.amount != 0, "Escrow record mismatch");
         delete escrowed[transferId];
         IERC20(asset).safeTransfer(address(ledger), item.amount);
         emit SourceLiquidityRefunded(transferId, asset, item.amount);
