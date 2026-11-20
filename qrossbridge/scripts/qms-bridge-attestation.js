@@ -8,9 +8,10 @@ const TYPES = { QmsBridgeDelivery: [
   { name: 'destinationChainId', type: 'uint256' },
   { name: 'sourceBridge', type: 'address' },
   { name: 'destinationBridge', type: 'address' },
+  { name: 'sourceAdapter', type: 'address' },
+  { name: 'destinationAdapter', type: 'address' },
   { name: 'sourceToken', type: 'address' },
   { name: 'destinationToken', type: 'address' },
-  { name: 'destinationAdapter', type: 'address' },
   { name: 'beneficiary', type: 'address' },
   { name: 'amount', type: 'uint256' },
   { name: 'bridgeMessageId', type: 'bytes32' },
@@ -22,14 +23,14 @@ const domain = (chainId, verifier) => ({
 });
 async function qmsBridgeDeliveryProof({
   wallets, verifier, transferId, sourceChainId, destinationChainId,
-  sourceBridge, destinationBridge, sourceToken, destinationToken,
-  destinationAdapter, beneficiary, amount, bridgeMessageId, deadline
+  sourceBridge, destinationBridge, sourceAdapter, destinationAdapter, sourceToken, destinationToken,
+  beneficiary, amount, bridgeMessageId, deadline
 }) {
   const value = {
     transferId, sourceChainId: BigInt(sourceChainId), destinationChainId: BigInt(destinationChainId),
     sourceBridge: ethers.getAddress(sourceBridge), destinationBridge: ethers.getAddress(destinationBridge),
-    sourceToken: ethers.getAddress(sourceToken), destinationToken: ethers.getAddress(destinationToken),
-    destinationAdapter: ethers.getAddress(destinationAdapter), beneficiary: ethers.getAddress(beneficiary),
+    sourceAdapter: ethers.getAddress(sourceAdapter), destinationAdapter: ethers.getAddress(destinationAdapter),
+    sourceToken: ethers.getAddress(sourceToken), destinationToken: ethers.getAddress(destinationToken), beneficiary: ethers.getAddress(beneficiary),
     amount: BigInt(amount), bridgeMessageId, deadline: BigInt(deadline)
   };
   const signed = await Promise.all(wallets.map(async wallet => ({
@@ -41,9 +42,9 @@ async function qmsBridgeDeliveryProof({
     if(signed[i-1].address.toLowerCase()===signed[i].address.toLowerCase()) throw new Error('Duplicate QMS validator signer');
   }
   return ethers.AbiCoder.defaultAbiCoder().encode(
-    ['uint256','uint256','address','address','address','address','address','address','uint256','bytes32','uint256','bytes[]'],
+    ['uint256','uint256','address','address','address','address','address','address','address','uint256','bytes32','uint256','bytes[]'],
     [value.sourceChainId,value.destinationChainId,value.sourceBridge,value.destinationBridge,
-     value.sourceToken,value.destinationToken,value.destinationAdapter,value.beneficiary,
+     value.sourceAdapter,value.destinationAdapter,value.sourceToken,value.destinationToken,value.beneficiary,
      value.amount,value.bridgeMessageId,value.deadline,signed.map(x=>x.signature)]
   );
 }
