@@ -11,7 +11,14 @@ interface IUniV3SwapRouter {
     struct ExactInputSingleParams { address tokenIn; address tokenOut; uint24 fee; address recipient; uint256 deadline; uint256 amountIn; uint256 amountOutMinimum; uint160 sqrtPriceLimitX96; }
     function exactInputSingle(ExactInputSingleParams calldata params) external payable returns (uint256 amountOut);
 }
+interface IUniV3Factory {
+    function getPool(address tokenA, address tokenB, uint24 fee) external view returns (address);
+}
+interface IUniV3Pool {
+    function tickSpacing() external view returns (int24);
+}
 interface IUniV3PositionManager {
+    function factory() external view returns (address);
     struct MintParams { address token0; address token1; uint24 fee; int24 tickLower; int24 tickUpper; uint256 amount0Desired; uint256 amount1Desired; uint256 amount0Min; uint256 amount1Min; address recipient; uint256 deadline; }
     struct DecreaseLiquidityParams { uint256 tokenId; uint128 liquidity; uint256 amount0Min; uint256 amount1Min; uint256 deadline; }
     struct CollectParams { uint256 tokenId; address recipient; uint128 amount0Max; uint128 amount1Max; }
@@ -64,7 +71,10 @@ contract UniswapV3LiquidityAdapter is Ownable, ReentrancyGuard, IERC721Receiver,
     constructor(address initialOwner, address ledger_) Ownable(initialOwner) { require(ledger_ != address(0), "Invalid ledger"); ledger = ledger_; }
     modifier onlyLedger() { require(msg.sender == ledger, "Only ledger"); _; }
     function configure(address router, address manager, address registry_) external onlyOwner {
-        require(router != address(0) && manager != address(0) && registry_ != address(0), "Invalid protocol address");
+        require(
+            router.code.length != 0 && manager.code.length != 0 && registry_.code.length != 0,
+            "Protocol address has no code"
+        );
         swapRouter = IUniV3SwapRouter(router); positionManager = IUniV3PositionManager(manager); registry = IQrosPositionRegistry(registry_);
         emit ProtocolConfigUpdated(router, manager, registry_);
     }
@@ -94,7 +104,16 @@ contract UniswapV3LiquidityAdapter is Ownable, ReentrancyGuard, IERC721Receiver,
         require(p.tickLower < p.tickUpper && p.swapAmount <= amount, "Invalid strategy bounds");
         if (p.swapAmount == 0) require(p.minSwapOut == 0, "Unexpected swap minimum");
         else require(allowedSwapFees[p.swapFee] && p.minSwapOut != 0, "Swap route not approved");
+        IUniV3Factory factory = IUniV3Factory(positionManager.factory());
+        address pool = factory.getPool(p.token0, p.token1, p.poolFee);
+        require(pool != address(0) && pool.code.length != 0, "Uniswap pool unavailable");
+        int24 spacing = IUniV3Pool(pool).tickSpacing();
+        require(p.tickLower % spacing == 0 && p.tickUpper % spacing == 0, "Ticks not aligned to pool");
         address outputToken = asset == p.token0 ? p.token1 : p.token0;
+        if (p.swapAmount != 0) {
+            address swapPool = factory.getPool(asset, outputToken, p.swapFee);
+            require(swapPool != address(0) && swapPool.code.length != 0, "Swap pool unavailable");
+        }
         IERC20 input = IERC20(asset); IERC20 output = IERC20(outputToken);
         uint256 inputBalance = input.balanceOf(address(this));
         require(inputBalance >= amount, "Input not funded");
