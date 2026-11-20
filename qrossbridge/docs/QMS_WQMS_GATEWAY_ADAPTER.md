@@ -46,6 +46,16 @@ Deploy one adapter and one QMS bridge attestation verifier on each participating
 - local bridge endpoint address (Hub on QMS, Spoke on remote chain);
 - local wQMS token address (Hub wQMS on QMS, Spoke token on remote chain).
 
+Deploy using `npm run compile`, then set these per-chain values in the protected local `.env` file and run `npm run deploy-qms-gateway-adapter`:
+
+- `RPC_URL`, `DEPLOYER_KEY`, optional `OWNER_ADDRESS`;
+- `QROS_GATEWAY_LEDGER`, `QROS_SETTLEMENT_VERIFIER`, `QROS_TRANSFER_COORDINATOR`;
+- `QMS_HUB_CHAIN_ID=19480`, `QMS_HUB_BRIDGE`, `QMS_HUB_WQMS`;
+- `QMS_LOCAL_BRIDGE`, `QMS_LOCAL_WQMS`;
+- optional `QMS_ATTESTATION_THRESHOLD` (defaults to 2).
+
+The command deploys the QMS-specific attestation verifier and adapter only. It does not configure signers, routes, ledger permissions, coordinator approval or the spoke adapter allowlist. Keep `.env` private and never commit the deployer or validator keys.
+
 Then configure each adapter's remote route using the other chain's bridge endpoint, wQMS token, QROS adapter address and destination Gateway ledger address. For a given source/destination pair, configure the matching route on both adapters and configure the QMS bridge verifier's route on the destination chain with:
 - source and destination chain IDs;
 - source and destination bridge addresses;
