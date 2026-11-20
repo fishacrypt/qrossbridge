@@ -102,7 +102,13 @@ abstract contract QrosSettlementAdapterBase is Ownable, ReentrancyGuard, IQrosSe
             recoveryProcessed[transferId] = true;
             ledger.cancelOutboundTransfer(transferId);
         } else if (status == 2) {
-            require(verifier.verifyRecovery(transferId, recoveryData), "Recovery not proven");
+            (bool valid, uint256 sourceChainId, address sourceAsset, uint256 recoveredAmount) =
+                verifier.verifyRecovery(transferId, recoveryData);
+            require(
+                valid && sourceChainId == block.chainid && sourceAsset == asset &&
+                recoveredAmount == _outboundAmount(transferId),
+                "Recovery proof mismatch"
+            );
             recoveryProcessed[transferId] = true;
             _returnRecoveredAsset(asset, transferId, recoveryData);
             ledger.recoverFinalizedOutboundTransfer(transferId);
@@ -110,6 +116,10 @@ abstract contract QrosSettlementAdapterBase is Ownable, ReentrancyGuard, IQrosSe
             revert("Transfer not recoverable");
         }
         emit OutboundRecoveryVerified(transferId);
+    }
+
+    function _outboundAmount(bytes32 transferId) private view returns (uint256 amount) {
+        (,,,,amount,,) = ledger.outboundTransfers(transferId);
     }
 
     /// @dev Must dispatch the exact transfer to the configured settlement protocol.
