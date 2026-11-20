@@ -74,7 +74,7 @@ contract QrosQuorumAttestationVerifier is Ownable, IQrosSettlementProofVerifier 
     }
 
     function verifyDelivery(bytes32 transferId, bytes calldata proof)
-        external view returns (
+        external view override returns (
             bool valid, uint256 sourceChainId, address sourceAsset, address recipient,
             address destinationAsset, uint256 amount
         )
@@ -101,7 +101,7 @@ contract QrosQuorumAttestationVerifier is Ownable, IQrosSettlementProofVerifier 
     }
 
     function verifyRecovery(bytes32 transferId, bytes calldata proof)
-        external view returns (bool valid, uint256 sourceChainId, address sourceAsset, uint256 amount)
+        external view override returns (bool valid, uint256 sourceChainId, address sourceAsset, uint256 amount)
     {
         uint256 deadline;
         bytes[] memory signatures;
@@ -117,7 +117,7 @@ contract QrosQuorumAttestationVerifier is Ownable, IQrosSettlementProofVerifier 
         valid = _hasQuorum(_digest(structHash), signatures);
     }
 
-    function verifyCancellation(bytes32 transferId, bytes calldata proof) external view returns (bool) {
+    function verifyCancellation(bytes32 transferId, bytes calldata proof) external view override returns (bool) {
         (uint256 sourceChainId, uint256 deadline, bytes[] memory signatures) =
             abi.decode(proof, (uint256,uint256,bytes[]));
         if (transferId == bytes32(0) || sourceChainId != block.chainid || block.timestamp > deadline) return false;
@@ -126,7 +126,7 @@ contract QrosQuorumAttestationVerifier is Ownable, IQrosSettlementProofVerifier 
     }
 
     function verifyOutboundSettlement(bytes32 transferId, bytes calldata proof)
-        external view returns (bool valid, uint256 destinationChainId, address sourceAsset, uint256 amount)
+        external view override returns (bool valid, uint256 destinationChainId, address sourceAsset, uint256 amount)
     {
         uint256 sourceChainId;
         uint256 deadline;
