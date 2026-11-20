@@ -116,13 +116,13 @@ abstract contract QrosSettlementAdapterBase is Ownable, ReentrancyGuard, IQrosSe
     function _dispatchOutbound(bytes32 transferId, address asset, uint256 amount,
         uint256 destinationChainId, address destinationAsset, address recipient) internal virtual;
 
-    /// @dev Must deliver/mint exactly amount of asset to this adapter before return.
+    /// @dev Must deliver/mint exactly amount of asset to the ledger before return.
     function _releaseInbound(address asset, uint256 amount) internal virtual;
 
     /// @dev Must verify no irreversible source action has happened.
     function _verifyPreDispatchCancellation(bytes32 transferId, bytes calldata data)
         internal view virtual returns (bool);
 
-    /// @dev Must return exactly the original source asset to this adapter.
+    /// @dev Must return exactly the original source asset to the ledger.
     function _returnRecoveredAsset(address asset, bytes32 transferId, bytes calldata data) internal virtual;
 }
