@@ -84,7 +84,7 @@ This handoff abstraction is bridge-neutral. It does not imply that QMS Testnet i
 - execution requires a separate destination-chain user signature, nonce, strategy allowlist and deadline;
 - a failed destination proof leaves the transfer pending/recoverable, never falsely credited.
 
-No chain-specific adapter, destination deployment, compilation, test or live transaction is claimed by this document.
+A dedicated QMS Hub/wQMS Spoke adapter has now been added as a separate reference path; see [QMS / wQMS Gateway settlement adapter](./QMS_WQMS_GATEWAY_ADAPTER.md). It uses the existing Hub/Spoke bridge and a validator quorum that attests both source event and destination processing. It does not turn the QMS bridge into a trustless bridge or CCTP. The adapter and route still require compilation, integration tests, deployment/configuration and security review. No live transaction is claimed by this document.
 
 
 ## Concrete reference adapter and validator operations
@@ -98,7 +98,7 @@ The implemented reference contracts are:
 
 Delivery and outbound-settlement signatures bind the transfer ID, source and destination chain IDs, source and destination token addresses, original beneficiary, destination Gateway ledger, exact amount and deadline. A proof for another destination ledger or beneficiary must not verify. The verifier route key includes the destination ledger.
 
-The current adapter's economic model is prefunded liquidity: destination inventory must be funded before delivery. Source escrow is held until validators attest destination completion, then released to a configured treasury. This is not the same as burning/minting through the existing QMS bridge. The existing QMS bridge moves native QMS/wQMS and uses a trusted relayer; it does not natively transport arbitrary USDC assets. A separate QMS bridge adapter must be written and reviewed before connecting these Gateway balances to that bridge.
+The current adapter's economic model is prefunded liquidity: destination inventory must be funded before delivery. Source escrow is held until validators attest destination completion, then released to a configured treasury. This is not the same as burning/minting through the existing QMS bridge. The existing QMS bridge moves native QMS/wQMS and uses a trusted relayer; it does not natively transport arbitrary USDC assets. The separate `QrosQmsBridgeAdapter` now provides a reference Hub/Spoke Gateway integration; it is still subject to validator trust, deployment, testing and security review as described in `QMS_WQMS_GATEWAY_ADAPTER.md`.
 
 ### Deployment/configuration order (per chain)
 
