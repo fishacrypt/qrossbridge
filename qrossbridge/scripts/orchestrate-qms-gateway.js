@@ -109,6 +109,12 @@ async function main(env = process.env) {
     await assertOwner(coordinator,owner,id+' transfer coordinator');
     await assertOwner(settlementVerifier,owner,id+' settlement verifier');
     await assertOwner(bridge,owner,id+' QMS bridge');
+    if (id === hubChainId) {
+      if (!same(await bridge.wqms(), hubWQMS)) throw new Error('Hub bridge wQMS does not match deployments.json');
+    } else {
+      if (Number(await bridge.hubChainId()) !== hubChainId) throw new Error(chains[id].name + ' points to a different Hub chain');
+      if (!same(await bridge.token(), localToken)) throw new Error(chains[id].name + ' Spoke token does not match deployments.json');
+    }
     contexts.set(id,{id,item,provider,wallet,localBridge,localToken,ledgerAddress,coordinatorAddress,settlementVerifierAddress,ledger,coordinator,settlementVerifier,bridge});
   }
 
@@ -180,6 +186,14 @@ async function main(env = process.env) {
       await ensureBool('enable settlement validator '+signer,()=>sv.isSigner(signer),()=>sv.setSigner(signer,true));
     }
     if(Number(await sv.threshold())!==threshold) await send('set settlement validator threshold',sv.setThreshold(threshold));
+  }
+
+  // Ensure the Hub permits deposits from every configured remote chain.
+  const hubContext=contexts.get(hubChainId);
+  for (const remoteId of selectedIds.filter(id=>id!==hubChainId)) {
+    await ensureBool('enable Hub support for '+chains[remoteId].name,
+      ()=>hubContext.bridge.supportedChain(remoteId),
+      ()=>hubContext.bridge.setChainSupport(remoteId,true));
   }
 
   // Configure every directed pair. The source adapter gets the destination route;
