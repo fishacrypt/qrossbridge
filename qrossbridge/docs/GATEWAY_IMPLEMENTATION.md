@@ -133,3 +133,49 @@ A request checks the user's available Gateway balance and asks the wallet to cal
 The browser keeps the newly requested transfer ID in memory for the second step. Transfer history is read from coordinator events for the connected wallet over a recent block window. It is an activity view, not a final settlement oracle.
 
 **Critical limitation:** the current coordinator's `initiate` call only asks the configured adapter to begin settlement. It does not establish destination finality. The destination balance must not be credited until an independently verified settlement adapter proves the source event/message and destination receipt, enforces replay protection, and calls the ledger's inbound-credit path. Cancellation must likewise only be possible when the adapter can prove that no irreversible settlement occurred. Do not configure placeholder adapter addresses or enable a route without a reviewed adapter implementation.
+
+
+## Settlement proof, finalization and recovery lifecycle
+
+### New protocol boundaries
+
+- `interfaces/IQrosSettlementProofVerifier.sol` defines a verifier contract that authenticates a delivery proof and returns the source chain, recipient, destination asset and amount. Recovery proofs are verified separately.
+- `adapters/QrosSettlementAdapterBase.sol` is an abstract security boundary for chain-specific adapters. It is intentionally not a deployable bridge implementation.
+- The base adapter requires a configured ledger, verifier and coordinator. Only the coordinator may initiate an outbound transfer through it.
+
+### Outbound lifecycle
+
+1. `requestTransfer` records the transfer and moves the user's ledger amount from `available` to `inTransit`.
+2. The user separately calls the coordinator's `initiate`.
+3. The coordinator calls the approved adapter. In one atomic transaction, the adapter calls `finalizeOutboundTransfer` (the ledger transfers source tokens into adapter custody) and then dispatches the transfer through its chain-specific protocol implementation. If dispatch reverts, the entire transaction, including the ledger handoff, reverts.
+4. Source dispatch is not destination settlement. The UI labels this state "Source dispatched · destination proof still required".
+5. The destination adapter accepts a proof only if its configured verifier authenticates the transfer ID and returns the exact source chain, recipient, destination asset and amount. The adapter must deliver those exact destination tokens into the destination ledger before calling `creditInboundTransfer`. The ledger checks actual token custody and replay protection.
+
+### Recovery lifecycle
+
+- **Pre-dispatch cancellation:** while the source ledger transfer is still `InTransit`, the adapter may cancel only if its protocol-specific `_verifyPreDispatchCancellation` proves no irreversible action occurred. The ledger restores `inTransit` to `available`.
+- **Post-dispatch recovery:** once the source ledger status is `Finalized`, cancellation is forbidden. A separate recovery proof must be accepted by `verifyRecovery`; the chain-specific adapter must return the exact original source asset to the source ledger, then call `recoverFinalizedOutboundTransfer`. The ledger checks that the returned funds are actually present before restoring the user's available balance.
+- A transfer ID can be recovered only once. The ledger has distinct `Cancelled` and `Recovered` terminal states.
+
+### What a production adapter must implement
+
+A concrete adapter must implement all four protocol-specific hooks:
+
+- `_dispatchOutbound`: transfer or burn/lock the source asset and emit the protocol's authenticated message, binding the QROS transfer ID, source and destination chain, destination asset, amount and recipient.
+- `_releaseInbound`: release/mint the exact destination asset to the destination ledger only after the proof verifier accepts the matching message.
+- `_verifyPreDispatchCancellation`: prove the outbound action did not happen and cannot later happen.
+- `_returnRecoveredAsset`: return the original source asset to the source ledger after an authenticated refund/recovery.
+
+The verifier is a critical trust boundary. It must verify protocol-native message authenticity and finality, chain/domain identifiers, token mapping, recipient, amount, transfer ID, and replay protection. It must not simply trust a relayer-supplied boolean or payload. Verifier upgrades and adapter changes require strict governance and timelocks.
+
+### Configuration and limitations
+
+The ledger's `settlementAdapter` must be set to the exact adapter that will call its settlement methods. The coordinator must approve the same adapter, and the adapter must point to the matching ledger and coordinator on that chain. Destination adapters are configured independently against their destination ledger. The adapter must be allowlisted as the ledger's settlement adapter before it can credit inbound funds.
+
+No concrete protocol implementation or verifier is included in this stage. Do not deploy this abstract base directly, configure placeholder verifier addresses, or enable a route yet. A QMS-to-Base adapter must use a settlement protocol actually supported by both networks and the exact token contracts; it must not be labelled Circle CCTP unless Circle confirms QMS support and token integration.
+
+The Gateway transfer activity panel now distinguishes requested, initiated, source-dispatched, cancelled and recovered states. "Source dispatched" is explicitly not shown as destination settled. Destination credit is a separate ledger event on the destination chain.
+
+### Validation status
+
+These are implementation commits only. No compile, integration, security or deployment validation has been performed in this implementation pass. The complete consolidated validation remains scheduled after the remaining Gateway modules are built.
