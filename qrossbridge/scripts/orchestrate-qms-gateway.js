@@ -161,6 +161,9 @@ async function main(env = process.env) {
       settlementVerifier:c.settlementVerifierAddress,bridgeVerifier:verifierAddress,adapter:adapterAddress};
     contexts.get(id).bridgeVerifier=verifier;
     contexts.get(id).adapter=adapter;
+    // Persist each chain as soon as its adapter pair is deployed, so an interrupted
+    // multi-chain run can safely resume without deploying duplicate contracts.
+    writeJson(outputFile,output);
   }
 
   // Apply chain-local asset, ledger, coordinator, verifier signer and threshold configuration.
