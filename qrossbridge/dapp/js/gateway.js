@@ -275,7 +275,14 @@
       const button=executionElement('button',{id:'gatewayExecSubmit',type:'button',className:'btn solid'},'Review and sign execution');
       const messageEl=executionElement('p',{id:'gatewayExecMessage',role:'status',style:'font-size:12px'});
       form.append(summary,button,messageEl);
-      panel.append(title,intro,form);
+      const positions=executionElement('div',{className:'gateway-position-list'});
+      const positionHead=executionElement('div',{style:'display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:18px'});
+      positionHead.append(executionElement('h3',{},'Your Uniswap positions'));
+      const positionRefresh=executionElement('button',{id:'gatewayPositionRefresh',type:'button',className:'btn sm'},'Refresh positions');
+      positionHead.append(positionRefresh);
+      const positionBody=executionElement('div',{id:'gatewayPositions',className:'gateway-empty'},'Connect your wallet and configure a position registry to view positions.');
+      panel.append(title,intro,form,positionHead,positionBody);
+      positionRefresh.addEventListener('click',refreshGatewayPositions);
       layout.after(panel);
       button.addEventListener('click',submitGatewayExecution);
     }
@@ -360,11 +367,44 @@
       messageEl.textContent='Execution confirmed. Check your wallet for the Uniswap V3 position NFT and refresh Gateway balances.';
       for(const id of ['gatewayExecAmount','gatewayExecSwapAmount','gatewayExecMinSwapOut','gatewayExecMin0','gatewayExecMin1'])$g(id).value='';
       await refresh();
+      await refreshGatewayPositions();
     }catch(e){
       messageEl.textContent=e?.shortMessage||e?.reason||e?.message||'Execution was not completed.';
     }finally{button.disabled=false}
   }
+
+  async function refreshGatewayPositions(){
+    const root=$g('gatewayPositions'),x=cfg().execution;
+    if(!root)return;
+    if(!x?.positionRegistry||!ethers.isAddress(x.positionRegistry)){
+      root.textContent='Position registry is not configured for this deployment.';
+      return;
+    }
+    if(typeof S==='undefined'||!S.account||!S.provider){root.textContent='Connect your wallet to view positions.';return}
+    try{
+      const provider=new ethers.BrowserProvider(S.provider);
+      const registry=new ethers.Contract(x.positionRegistry,[
+        'function getUserPositions(address user) view returns (bytes32[])',
+        'function getPosition(bytes32 positionId) view returns ((address user,uint256 chainId,address positionManager,uint256 tokenId,address token0,address token1,uint24 fee,int24 tickLower,int24 tickUpper,uint128 liquidity,uint8 status,uint64 createdAt))'
+      ],provider);
+      const ids=await registry.getUserPositions(S.account);
+      root.replaceChildren();
+      if(!ids.length){root.className='gateway-empty';root.textContent='No Uniswap V3 positions are registered to this wallet on this chain.';return}
+      root.className='gateway-position-list';
+      for(const id of ids.slice().reverse()){
+        const p=await registry.getPosition(id);
+        const card=executionElement('div',{className:'gateway-asset',style:'grid-template-columns:minmax(0,1fr) minmax(0,1fr);margin-top:8px'});
+        const title=executionElement('b',{},(p.token0.slice(0,6)+'… / '+p.token1.slice(0,6)+'…'));
+        const status=['Unknown','Active','Closing','Closed'][Number(p.status)]||'Unknown';
+        const detail=executionElement('span',{},'NFT #'+p.tokenId+' · fee '+p.fee+' · liquidity '+p.liquidity);
+        const range=executionElement('span',{},'Ticks '+p.tickLower+' to '+p.tickUpper+' · '+status);
+        const idText=executionElement('span',{},id.slice(0,10)+'…');
+        card.append(title,detail,range,idText);root.append(card);
+      }
+    }catch(e){root.textContent='Position lookup failed: '+(e?.shortMessage||e?.message||'RPC error')}
+  }
   window.qrosGatewayRefresh=refresh;
+  window.qrosGatewayPositionsRefresh=refreshGatewayPositions;
   document.addEventListener('DOMContentLoaded',()=>{
     renderGatewayExecution();
     const b=$g('gatewayRefresh');if(b)b.addEventListener('click',refresh);
@@ -374,7 +414,7 @@
     const i=$g('gatewayInitiateButton');if(i)i.addEventListener('click',initiateGatewayTransfer);
     const a=$g('gatewayTransferAsset');if(a)a.addEventListener('change',renderTransferOptions);
     const r=$g('gatewayTransferRoute');if(r)r.addEventListener('change',renderTransferOptions);
-    renderAssetSelectors(cfg().assets||[]);renderTransferOptions();renderGatewayExecution();
+    renderAssetSelectors(cfg().assets||[]);renderTransferOptions();renderGatewayExecution();refreshGatewayPositions();
   });
   window.addEventListener('qros:wallet-updated',refresh);
 })();
