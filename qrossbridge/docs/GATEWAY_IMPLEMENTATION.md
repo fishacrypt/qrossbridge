@@ -353,6 +353,6 @@ Fee collection does not reduce principal cost basis. Reduce/close amounts includ
 - The Gateway must have each token enabled before it can credit proceeds in that token. If a position includes an unsupported token, the user must choose wallet delivery or governance must first enable that asset.
 - Partial cost-basis allocation is proportional to liquidity removed. It is an accounting convention, not a mark-to-market calculation.
 - The position NFT is held by the user between actions. QROS cannot manage it without the user's explicit NFT approval.
-- The current UI uses zero minimum-output values for reduce/close actions. Users should only execute when they accept the resulting slippage risk; production UI should require nonzero, user-reviewed minimums and show a current quote.
+- The UI now exposes explicit minimum token0/token1 output fields for reduce/close actions. Values are entered in raw token units; users should verify token decimals and choose meaningful bounds from a current quote before signing. The UI does not yet fetch or display a live quote.
 - No automatic conversion between token0 and token1 is performed when proceeds return to Gateway. Each token is credited separately, preserving asset-specific accounting.
 - Position actions, ledger crediting, and NFT lifecycle changes have been implemented but have not been compiled or exercised in this stage. They are not a production-readiness claim.
