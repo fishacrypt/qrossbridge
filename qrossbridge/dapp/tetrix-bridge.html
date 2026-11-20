@@ -136,10 +136,10 @@
       <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><span class="gateway-status" id="gatewayStatus">Connect wallet to view balances</span><button class="btn sm" id="gatewayRefresh" type="button">Refresh balances</button></div>
     </div>
     <div class="gateway-grid">
-      <div class="gateway-metric"><small>AVAILABLE</small><strong>—</strong><span>Ready for your next instruction</span></div>
-      <div class="gateway-metric"><small>IN TRANSIT</small><strong>—</strong><span>Transfers awaiting settlement</span></div>
-      <div class="gateway-metric"><small>RESERVED</small><strong>—</strong><span>Authorized, not yet deployed</span></div>
-      <div class="gateway-metric"><small>DEPLOYED</small><strong>—</strong><span>Principal assigned to strategies</span></div>
+      <div class="gateway-metric"><small>AVAILABLE</small><strong data-gateway-metric="available">—</strong><span>Ready for your next instruction</span></div>
+      <div class="gateway-metric"><small>IN TRANSIT</small><strong data-gateway-metric="inTransit">—</strong><span>Transfers awaiting settlement</span></div>
+      <div class="gateway-metric"><small>RESERVED</small><strong data-gateway-metric="reserved">—</strong><span>Authorized, not yet deployed</span></div>
+      <div class="gateway-metric"><small>DEPLOYED</small><strong data-gateway-metric="deployed">—</strong><span>Principal assigned to strategies</span></div>
     </div>
     <div class="gateway-layout">
       <section class="gateway-panel"><h3>Asset balances</h3><p>Balances are read directly from the configured QROS Gateway ledger.</p>
