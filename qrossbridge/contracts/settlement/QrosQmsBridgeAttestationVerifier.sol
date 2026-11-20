@@ -13,7 +13,7 @@ contract QrosQmsBridgeAttestationVerifier is Ownable, IQrosQmsBridgeProofVerifie
     bytes32 private constant NAME_HASH = keccak256("QROS QMS Bridge Attestation");
     bytes32 private constant VERSION_HASH = keccak256("1");
     bytes32 private constant DELIVERY_TYPEHASH = keccak256(
-        "QmsBridgeDelivery(bytes32 transferId,uint256 sourceChainId,uint256 destinationChainId,address sourceBridge,address destinationBridge,address sourceToken,address destinationToken,address destinationAdapter,address beneficiary,uint256 amount,bytes32 bridgeMessageId,uint256 deadline)"
+        "QmsBridgeDelivery(bytes32 transferId,uint256 sourceChainId,uint256 destinationChainId,address sourceBridge,address destinationBridge,address sourceAdapter,address destinationAdapter,address sourceToken,address destinationToken,address beneficiary,uint256 amount,bytes32 bridgeMessageId,uint256 deadline)"
     );
 
     mapping(address => bool) public isSigner;
@@ -53,23 +53,23 @@ contract QrosQmsBridgeAttestationVerifier is Ownable, IQrosQmsBridgeProofVerifie
     ) public pure returns (bytes32) {
         return keccak256(abi.encode(
             sourceChainId, destinationChainId, sourceBridge, destinationBridge,
-            sourceToken, destinationToken, destinationAdapter
+            sourceToken, destinationToken, sourceAdapter, destinationAdapter
         ));
     }
 
     function setRoute(
         uint256 sourceChainId, uint256 destinationChainId,
         address sourceBridge, address destinationBridge,
-        address sourceToken, address destinationToken, address destinationAdapter,
+        address sourceToken, address destinationToken, address sourceAdapter, address destinationAdapter,
         bool enabled
     ) external onlyOwner {
         require(sourceChainId != 0 && destinationChainId != 0 && sourceChainId != destinationChainId, "Invalid chains");
         require(
             sourceBridge != address(0) && destinationBridge != address(0) &&
             sourceToken != address(0) && destinationToken != address(0) &&
-            destinationAdapter != address(0), "Zero route field"
+            sourceAdapter != address(0) && destinationAdapter != address(0), "Zero route field"
         );
-        bytes32 key = routeKey(sourceChainId, destinationChainId, sourceBridge, destinationBridge, sourceToken, destinationToken, destinationAdapter);
+        bytes32 key = routeKey(sourceChainId, destinationChainId, sourceBridge, destinationBridge, sourceToken, destinationToken, sourceAdapter, destinationAdapter);
         enabledRoute[key] = enabled;
         emit RouteUpdated(key, enabled);
     }
@@ -80,9 +80,10 @@ contract QrosQmsBridgeAttestationVerifier is Ownable, IQrosQmsBridgeProofVerifie
         uint256 destinationChainId,
         address sourceBridge,
         address destinationBridge,
+        address sourceAdapter,
+        address destinationAdapter,
         address sourceToken,
         address destinationToken,
-        address destinationAdapter,
         address beneficiary,
         uint256 amount,
         bytes32 bridgeMessageId
@@ -91,9 +92,9 @@ contract QrosQmsBridgeAttestationVerifier is Ownable, IQrosQmsBridgeProofVerifie
         bytes[] memory signatures;
         (
             sourceChainId, destinationChainId, sourceBridge, destinationBridge,
-            sourceToken, destinationToken, destinationAdapter, beneficiary,
+            sourceAdapter, destinationAdapter, sourceToken, destinationToken, beneficiary,
             amount, bridgeMessageId, deadline, signatures
-        ) = abi.decode(proof, (uint256,uint256,address,address,address,address,address,address,uint256,bytes32,uint256,bytes[]));
+        ) = abi.decode(proof, (uint256,uint256,address,address,address,address,address,address,address,uint256,bytes32,uint256,bytes[]));
 
         if (
             transferId == bytes32(0) || sourceChainId == 0 || destinationChainId != block.chainid ||
@@ -110,8 +111,8 @@ contract QrosQmsBridgeAttestationVerifier is Ownable, IQrosQmsBridgeProofVerifie
 
         bytes32 structHash = keccak256(abi.encode(
             DELIVERY_TYPEHASH, transferId, sourceChainId, destinationChainId,
-            sourceBridge, destinationBridge, sourceToken, destinationToken,
-            destinationAdapter, beneficiary, amount, bridgeMessageId, deadline
+            sourceBridge, destinationBridge, sourceAdapter, destinationAdapter,
+            sourceToken, destinationToken, beneficiary, amount, bridgeMessageId, deadline
         ));
         valid = _hasQuorum(_digest(structHash), signatures);
     }
