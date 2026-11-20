@@ -160,7 +160,20 @@
           <label for="gatewayWithdrawRecipient">Recipient address</label><input id="gatewayWithdrawRecipient" placeholder="Your connected wallet" autocomplete="off">
           <button class="btn" id="gatewayWithdrawButton" type="button">Withdraw available balance</button>
         </div>
-        <div class="gateway-actions"><a href="#/bridge">Open transfer</a><a href="#/execution">Explore execution</a></div>
+        <div class="gateway-form">
+          <h3>Move balance across networks</h3>
+          <p>Only routes explicitly configured by QROS are selectable. Your source balance moves from available to in transit when you request the transfer.</p>
+          <label for="gatewayTransferAsset">Source asset</label><select id="gatewayTransferAsset"></select>
+          <label for="gatewayTransferRoute">Destination network</label><select id="gatewayTransferRoute"></select>
+          <label for="gatewayTransferDestinationAsset">Destination asset</label><select id="gatewayTransferDestinationAsset"></select>
+          <label for="gatewayTransferAmount">Amount</label><input id="gatewayTransferAmount" inputmode="decimal" placeholder="0.00" autocomplete="off">
+          <label for="gatewayTransferRecipient">Destination wallet address</label><input id="gatewayTransferRecipient" placeholder="0x..." autocomplete="off" spellcheck="false">
+          <button class="btn solid" id="gatewayTransferButton" type="button">Review and request transfer</button>
+          <button class="btn" id="gatewayInitiateButton" type="button" hidden>Retry settlement initiation</button>
+          <p id="gatewayTransferMessage" role="status" style="font-size:12px"></p>
+        </div>
+        <div class="gateway-panel" style="margin-top:14px;padding:14px"><h3>Gateway transfer activity</h3><div id="gatewayTransferHistory" class="gateway-empty">No Gateway transfers recorded in this browser yet.</div></div>
+        <div class="gateway-actions"><a href="#/bridge">Open legacy bridge</a><a href="#/execution">Explore execution</a></div>
         <p id="gatewayMessage" class="gateway-error" style="font-size:12px;margin-top:12px" role="status"></p>
       </aside>
     </div>
