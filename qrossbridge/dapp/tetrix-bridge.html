@@ -148,7 +148,18 @@
         <div class="gateway-note">The four balance buckets are tracked separately. Assets with different token contracts are never combined into a single token balance.</div>
       </section>
       <aside class="gateway-panel"><h3>Account</h3><p>Connected wallet</p><p class="mono" id="gatewayOwner" style="margin-top:10px;overflow-wrap:anywhere">Wallet not connected</p>
-        <div class="gateway-note">Gateway deposits, withdrawals and transfers will be enabled here after the ledger deployment and supported asset configuration are verified. This dashboard currently provides read-only balance access.</div>
+        <div class="gateway-note">Deposits increase your available balance. Withdrawals only use available funds. Neither action automatically starts a bridge transfer or DeFi strategy.</div>
+        <div class="gateway-form">
+          <h3>Deposit</h3>
+          <label for="gatewayDepositAsset">Asset</label><select id="gatewayDepositAsset"></select>
+          <label for="gatewayDepositAmount">Amount</label><input id="gatewayDepositAmount" inputmode="decimal" placeholder="0.00" autocomplete="off">
+          <button class="btn solid" id="gatewayDepositButton" type="button">Deposit to Gateway</button>
+          <h3>Withdraw</h3>
+          <label for="gatewayWithdrawAsset">Asset</label><select id="gatewayWithdrawAsset"></select>
+          <label for="gatewayWithdrawAmount">Amount</label><input id="gatewayWithdrawAmount" inputmode="decimal" placeholder="0.00" autocomplete="off">
+          <label for="gatewayWithdrawRecipient">Recipient address</label><input id="gatewayWithdrawRecipient" placeholder="Your connected wallet" autocomplete="off">
+          <button class="btn" id="gatewayWithdrawButton" type="button">Withdraw available balance</button>
+        </div>
         <div class="gateway-actions"><a href="#/bridge">Open transfer</a><a href="#/execution">Explore execution</a></div>
         <p id="gatewayMessage" class="gateway-error" style="font-size:12px;margin-top:12px" role="status"></p>
       </aside>
