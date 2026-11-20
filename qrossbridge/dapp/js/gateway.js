@@ -124,8 +124,9 @@
       const route=routes.find(r=>(r.id||[r.destinationChainId,r.destinationAsset,r.adapter].join(':'))===$g('gatewayTransferRoute')?.value);
       if(!asset||!route)throw new Error('No verified Gateway transfer route is configured for this source asset.');
       const amount=parseAmount($g('gatewayTransferAmount')?.value,Number(asset.decimals??6));
+      const handoff=Boolean(route.destinationLedger&&ethers.isAddress(route.destinationLedger));
       const recipient=($g('gatewayTransferRecipient')?.value||'').trim();
-      if(!ethers.isAddress(recipient))throw new Error('Enter a valid destination wallet address.');
+      if(!handoff&&!ethers.isAddress(recipient))throw new Error('Enter a valid destination wallet address.');
       const c=cfg();
       if(!c.coordinator||!ethers.isAddress(c.coordinator))throw new Error('Gateway transfer coordinator is not configured.');
       const {signer,ledger}=await transactionContext();
