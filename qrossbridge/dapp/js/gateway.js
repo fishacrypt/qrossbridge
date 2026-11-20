@@ -377,15 +377,14 @@
     const root=$g('gatewayPositions'),x=cfg().execution;
     if(!root)return;
     if(!x?.positionRegistry||!ethers.isAddress(x.positionRegistry)){
-      root.textContent='Position registry is not configured for this deployment.';
-      return;
+      root.textContent='Position registry is not configured for this deployment.';return;
     }
     if(typeof S==='undefined'||!S.account||!S.provider){root.textContent='Connect your wallet to view positions.';return}
     try{
       const provider=new ethers.BrowserProvider(S.provider);
       const registry=new ethers.Contract(x.positionRegistry,[
         'function getUserPositions(address user) view returns (bytes32[])',
-        'function getPosition(bytes32 positionId) view returns ((address user,uint256 chainId,address positionManager,uint256 tokenId,address token0,address token1,uint24 fee,int24 tickLower,int24 tickUpper,uint128 liquidity,uint8 status,uint64 createdAt))'
+        'function getPosition(bytes32 positionId) view returns ((address user,uint256 chainId,address positionManager,uint256 tokenId,address token0,address token1,uint24 fee,int24 tickLower,int24 tickUpper,address inputAsset,uint256 deployedCostBasis,uint128 liquidity,uint8 status,uint64 createdAt))'
       ],provider);
       const ids=await registry.getUserPositions(S.account);
       root.replaceChildren();
@@ -393,15 +392,93 @@
       root.className='gateway-position-list';
       for(const id of ids.slice().reverse()){
         const p=await registry.getPosition(id);
-        const card=executionElement('div',{className:'gateway-asset',style:'grid-template-columns:minmax(0,1fr) minmax(0,1fr);margin-top:8px'});
-        const title=executionElement('b',{},(p.token0.slice(0,6)+'… / '+p.token1.slice(0,6)+'…'));
+        const card=executionElement('div',{className:'gateway-panel',style:'margin-top:10px;padding:15px'});
         const status=['Unknown','Active','Closing','Closed'][Number(p.status)]||'Unknown';
-        const detail=executionElement('span',{},'NFT #'+p.tokenId+' · fee '+p.fee+' · liquidity '+p.liquidity);
-        const range=executionElement('span',{},'Ticks '+p.tickLower+' to '+p.tickUpper+' · '+status);
-        const idText=executionElement('span',{},id.slice(0,10)+'…');
-        card.append(title,detail,range,idText);root.append(card);
+        card.append(executionElement('b',{},(p.token0.slice(0,8)+'… / '+p.token1.slice(0,8)+'… · '+status)));
+        card.append(executionElement('p',{},'NFT #'+p.tokenId+' · fee '+p.fee+' · liquidity '+p.liquidity));
+        card.append(executionElement('p',{},'Ticks '+p.tickLower+' to '+p.tickUpper+' · original Gateway asset '+p.inputAsset.slice(0,8)+'… · tracked deployed basis '+fmt(p.deployedCostBasis,Number((cfg().assets||[]).find(a=>a.address?.toLowerCase()===p.inputAsset.toLowerCase())?.decimals??6))));
+        card.append(executionElement('p',{},'Position ID '+id));
+        if(Number(p.status)===1){
+          const route=executionElement('select',{id:'positionRoute_'+id,style:'width:100%;min-height:38px;margin:8px 0'});
+          const wallet=executionElement('option',{value:'wallet'},'Send proceeds to connected wallet');
+          const gateway=executionElement('option',{value:'gateway'},'Return proceeds to QROS Gateway available balance');
+          route.append(wallet,gateway);card.append(route);
+          const reduceInput=executionElement('input',{id:'positionReduce_'+id,type:'text',inputmode:'numeric',placeholder:'Liquidity units to remove (optional)',style:'width:100%;min-height:38px;margin:6px 0'});
+          card.append(reduceInput);
+          const actions=executionElement('div',{className:'gateway-actions'});
+          const collect=executionElement('button',{type:'button',className:'btn sm'},'Collect fees');
+          const reduce=executionElement('button',{type:'button',className:'btn sm'},'Reduce liquidity');
+          const close=executionElement('button',{type:'button',className:'btn sm'},'Close position');
+          collect.addEventListener('click',()=>manageGatewayPosition(id,'collect'));
+          reduce.addEventListener('click',()=>manageGatewayPosition(id,'reduce'));
+          close.addEventListener('click',()=>manageGatewayPosition(id,'close'));
+          actions.append(collect,reduce,close);card.append(actions);
+        }
+        root.append(card);
       }
     }catch(e){root.textContent='Position lookup failed: '+(e?.shortMessage||e?.message||'RPC error')}
+  }
+  async function manageGatewayPosition(positionId,action){
+    const x=cfg().execution,route=$g('positionRoute_'+positionId)?.value||'wallet';
+    const toGateway=route==='gateway';
+    const buttonIds=['gatewayPositionRefresh'];
+    const root=$g('gatewayPositions');
+    try{
+      if(!x?.adapter||!x?.positionRegistry)throw new Error('Position adapter and registry must be configured.');
+      const {provider,signer,ledger}=await transactionContext();
+      const user=await signer.getAddress();
+      const adapter=new ethers.Contract(x.adapter,[
+        'function collectFees(bytes32 positionId,uint256 deadline,bool toGateway) returns (uint256,uint256)',
+        'function reduceLiquidity(bytes32 positionId,uint128 liquidityToRemove,uint256 amount0Min,uint256 amount1Min,uint256 deadline,bool toGateway) returns (uint256,uint256)',
+        'function closePosition(bytes32 positionId,uint256 amount0Min,uint256 amount1Min,uint256 deadline,bool toGateway) returns (uint256,uint256)'
+      ],signer);
+      const registry=new ethers.Contract(x.positionRegistry,[
+        'function getPosition(bytes32 positionId) view returns ((address user,uint256 chainId,address positionManager,uint256 tokenId,address token0,address token1,uint24 fee,int24 tickLower,int24 tickUpper,address inputAsset,uint256 deployedCostBasis,uint128 liquidity,uint8 status,uint64 createdAt))'
+      ],provider);
+      const p=await registry.getPosition(positionId);
+      if(p.user.toLowerCase()!==user.toLowerCase()||Number(p.status)!==1)throw new Error('This position is not active and owned by the connected wallet.');
+      const manager=new ethers.Contract(p.positionManager,[
+        'function getApproved(uint256 tokenId) view returns (address)',
+        'function isApprovedForAll(address owner,address operator) view returns (bool)',
+        'function approve(address to,uint256 tokenId)'
+      ],signer);
+      const approved=await manager.getApproved(p.tokenId);
+      const approvedAll=await manager.isApprovedForAll(user,x.adapter);
+      if(approved.toLowerCase()!==x.adapter.toLowerCase()&&!approvedAll){
+        if(!window.confirm('Approve the QROS position adapter for NFT #'+p.tokenId+'? This approval lets it collect or remove liquidity only when you submit an action.'))return;
+        const approval=await manager.approve(x.adapter,p.tokenId);await approval.wait();
+      }
+      if(toGateway){
+        const supported0=await ledger.supportedAssets(p.token0);
+        const supported1=await ledger.supportedAssets(p.token1);
+        if(!supported0&&!supported1)throw new Error('Neither position token is enabled as a Gateway asset. Choose wallet delivery.');
+        if((!supported0||!supported1)&&action!=='collect')throw new Error('Both position tokens must be enabled in Gateway before returning principal proceeds there. Choose wallet delivery or enable both assets.');
+      }
+      const deadline=BigInt(Math.floor(Date.now()/1000)+600);
+      let tx;
+      if(action==='collect')tx=await adapter.collectFees(positionId,deadline,toGateway);
+      else if(action==='reduce'){
+        const raw=($g('positionReduce_'+positionId)?.value||'').trim();
+        if(!/^\d+$/.test(raw)||BigInt(raw)<=0n||BigInt(raw)>p.liquidity)throw new Error('Enter a valid liquidity amount not exceeding the position liquidity.');
+        tx=await adapter.reduceLiquidity(positionId,BigInt(raw),0,0,deadline,toGateway);
+      }else if(action==='close'){
+        if(!window.confirm('Close this Uniswap position, collect all proceeds and burn its NFT?'))return;
+        tx=await adapter.closePosition(positionId,0,0,deadline,toGateway);
+      }
+      if(!tx)throw new Error('No position action selected.');
+      if(root)root.setAttribute('aria-busy','true');
+      const receipt=await tx.wait();
+      if(toGateway){
+        const tokens=[p.token0,p.token1];
+        for(const asset of tokens){
+          const cfgAsset=(cfg().assets||[]).find(a=>a.address?.toLowerCase()===asset.toLowerCase());
+          if(cfgAsset)message('Position action confirmed. '+cfgAsset.symbol+' proceeds have been credited to Gateway.');
+        }
+      }else message('Position action confirmed. Proceeds were sent to your wallet.');
+      await refresh();await refreshGatewayPositions();
+    }catch(e){
+      message(e?.shortMessage||e?.reason||e?.message||'Position action failed.',true);
+    }finally{if(root)root.removeAttribute('aria-busy')}
   }
   window.qrosGatewayRefresh=refresh;
   window.qrosGatewayPositionsRefresh=refreshGatewayPositions;
