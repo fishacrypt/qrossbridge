@@ -128,7 +128,7 @@ contract QrosQmsBridgeAdapter is QrosSettlementAdapterBase {
 
     function _verifyInboundBridgeProof(
         bytes32 transferId, bytes calldata proof, uint256 sourceChainId,
-        address recipient, address asset, uint256 amount
+        address sourceAsset, address, address asset, uint256 amount
     ) internal view override returns (bool) {
         (, bytes memory bridgeProof) = abi.decode(proof, (bytes, bytes));
         (
@@ -156,7 +156,7 @@ contract QrosQmsBridgeAdapter is QrosSettlementAdapterBase {
             destinationChain == block.chainid && sourceRoute.gatewayLedger != address(0) &&
             sourceBridge == expectedSourceBridge && destinationBridge == expectedDestinationBridge &&
             sourceAdapter == sourceRoute.adapter && destinationToken == asset &&
-            sourceToken == expectedSourceToken &&
+            sourceToken == expectedSourceToken && sourceToken == sourceAsset &&
             expectedDestinationToken == asset && destinationAdapter == address(this) &&
             beneficiary == address(this) && provedAmount == amount && bridgeMessageId != bytes32(0);
     }
