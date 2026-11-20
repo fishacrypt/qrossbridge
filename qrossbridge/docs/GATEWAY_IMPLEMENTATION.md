@@ -79,3 +79,24 @@ window.QROS_GATEWAY_CONFIG = {
 This configuration must be supplied by the deployment process with chain-specific verified addresses. Do not insert placeholder addresses or reuse addresses from another chain. When multiple assets are configured, the dashboard keeps their balances separate rather than summing unlike tokens. For a single configured asset, the summary metrics show that asset's four buckets.
 
 The dashboard is a read-only integration step, not a claim that Gateway contracts have been deployed or that deposit, withdrawal, settlement or strategy execution is live.
+
+
+## Gateway deposit and withdrawal UI
+
+The Gateway view now exposes wallet-authorized deposit and withdrawal flows when deployment configuration is present.
+
+Required browser configuration:
+
+```js
+window.QROS_GATEWAY_CONFIG = {
+  chainId: 19480, // replace with the actual chain hosting this ledger
+  ledger: "0x<verified-ledger-address>",
+  assets: [
+    { symbol: "USDC", address: "0x<verified-token-address>", decimals: 6 }
+  ]
+};
+```
+
+Before a deposit, the UI checks the ledger's `supportedAssets` flag, requests ERC-20 allowance and asks the user to approve the exact amount if needed, then calls `deposit(asset, amount)`. Withdrawals call `withdraw(asset, amount, recipient)` and check the connected user's available balance before submitting. Both require the wallet to be on the configured ledger chain. Transaction completion is awaited before the displayed balances refresh.
+
+The interface does not initiate transfers or execution as a side effect of either operation. No default chain, token or ledger address is supplied by the frontend. The deployment configuration must only contain addresses verified for the selected chain. These flows remain subject to contract-level security review and end-to-end validation; they are not evidence of a deployed or audited Gateway.
