@@ -241,3 +241,42 @@ No route should be enabled until both chain deployments, token addresses/decimal
 - post-dispatch source-token recovery.
 
 The package test command includes this suite after the existing bridge, dApp and Gateway ledger suites. The tests have been authored but not run; artifacts must be rebuilt before the consolidated validation pass.
+
+
+## Execution stage hardening and integration test
+
+The Uniswap V3 execution adapter now requires explicit governance approvals for:
+- the strategy-specific ordered token pair (`strategyId`, `token0`, `token1`);
+- the Uniswap V3 LP pool fee tier;
+- the swap pool fee tier whenever a swap is requested.
+
+It also:
+- rejects protocol configuration addresses without deployed code and verifies the position manager's factory;
+- checks that both the LP pool and optional swap pool exist in that factory;
+- checks that the requested tick bounds align with the LP pool's tick spacing;
+- bounds execution deadlines to a configurable window (default 30 minutes; owner may set 1 minute–2 hours);
+- requires a nonzero minimum swap output when swapping and rejects an unused swap minimum otherwise;
+- verifies that the newly minted NFT is initially held by the adapter, registers it, transfers it to the user, then verifies user ownership;
+- requires the registry to confirm that the approved adapter actually holds the NFT before registering its metadata.
+
+### Execution authorization test
+
+`test/execution-router.js` uses a local Ganache chain and a test-only mock adapter. It checks EIP-712 user signatures, altered adapter-data rejection, non-owner signature rejection, third-party submission of a valid user authorization, returned-unused balance accounting, nonce consumption and replay rejection.
+
+The mock deliberately returns all input to the Gateway. It tests authorization and ledger accounting only; it does not simulate a Uniswap swap or mint. The real Uniswap adapter still requires canonical-contract integration tests against the target chain's official factory, SwapRouter and NonfungiblePositionManager.
+
+### Required route setup before enabling a strategy
+
+For each strategy, governance must:
+1. Approve the strategy ID in `QrosExecutionRouter`.
+2. Approve the exact ordered token pair in `UniswapV3LiquidityAdapter.setStrategyPair`.
+3. Approve the LP fee tier with `setPoolFee`.
+4. If the strategy swaps, approve the actual swap fee tier with `setSwapFee`.
+5. Configure verified chain-specific SwapRouter, PositionManager and PositionRegistry addresses; approve the adapter in the registry; and configure it as the ledger execution adapter.
+6. Confirm the pool exists, the fee tier is valid, the ticks match tick spacing, and the signed `minSwapOut`, `amount0Min` and `amount1Min` represent acceptable slippage bounds.
+
+The EIP-712 intent authorizes the exact adapter-data hash, input token, amount, strategy ID, nonce and deadline. It is user-signed and can be submitted by a relayer, but the user must still review and sign the authorization. The NFT is delivered to the user wallet; the adapter cannot manage it afterward unless the user separately approves that specific NFT or grants operator approval.
+
+### Test status
+
+The execution authorization integration test has been added to the consolidated `npm test` script. It is authored but has not been executed. The Uniswap adapter has not been validated against live canonical Uniswap V3 contracts, and no protocol deployment or strategy activation is implied.
