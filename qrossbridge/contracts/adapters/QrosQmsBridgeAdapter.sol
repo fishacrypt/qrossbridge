@@ -35,6 +35,8 @@ contract QrosQmsBridgeAdapter is QrosSettlementAdapterBase {
     IQrosQmsBridgeProofVerifier public bridgeVerifier;
     mapping(uint256 => RemoteRoute) public remoteRoutes;
     mapping(bytes32 => bool) public outboundMessageUsed;
+    mapping(bytes32 => bytes32) public outboundBridgeMessageId;
+    mapping(bytes32 => uint256) public outboundDestinationChain;
 
     event RemoteRouteUpdated(uint256 indexed chainId, address bridge, address token, address adapter, address gatewayLedger, bool enabled);
     event BridgeVerifierUpdated(address indexed verifier);
@@ -110,6 +112,8 @@ contract QrosQmsBridgeAdapter is QrosSettlementAdapterBase {
             IQmsSpokeGateway(localBridge).bridgeBackFor(address(this), amount, route.adapter, false);
         }
         bridgeMessageId = keccak256(abi.encode(block.chainid, nonceBefore + 1));
+        outboundBridgeMessageId[transferId] = bridgeMessageId;
+        outboundDestinationChain[transferId] = destinationChainId;
         emit QmsBridgeDispatch(transferId, destinationChainId, bridgeMessageId, route.adapter, amount);
     }
 
