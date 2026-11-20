@@ -13,11 +13,26 @@ interface IUniV3SwapRouter {
 }
 interface IUniV3PositionManager {
     struct MintParams { address token0; address token1; uint24 fee; int24 tickLower; int24 tickUpper; uint256 amount0Desired; uint256 amount1Desired; uint256 amount0Min; uint256 amount1Min; address recipient; uint256 deadline; }
+    struct DecreaseLiquidityParams { uint256 tokenId; uint128 liquidity; uint256 amount0Min; uint256 amount1Min; uint256 deadline; }
+    struct CollectParams { uint256 tokenId; address recipient; uint128 amount0Max; uint128 amount1Max; }
     function mint(MintParams calldata params) external payable returns (uint256 tokenId, uint128 liquidity, uint256 amount0, uint256 amount1);
+    function decreaseLiquidity(DecreaseLiquidityParams calldata params) external payable returns (uint256 amount0, uint256 amount1);
+    function collect(CollectParams calldata params) external payable returns (uint256 amount0, uint256 amount1);
+    function burn(uint256 tokenId) external payable;
+    function ownerOf(uint256 tokenId) external view returns (address);
+    function getApproved(uint256 tokenId) external view returns (address);
+    function isApprovedForAll(address owner, address operator) external view returns (bool);
     function safeTransferFrom(address from, address to, uint256 tokenId) external;
 }
 interface IQrosPositionRegistry {
+    struct Position {
+        address user; uint256 chainId; address positionManager; uint256 tokenId;
+        address token0; address token1; uint24 fee; int24 tickLower; int24 tickUpper;
+        uint128 liquidity; uint8 status; uint64 createdAt;
+    }
     function registerPosition(bytes32 positionId, address user, address manager, uint256 tokenId, address token0, address token1, uint24 fee, int24 tickLower, int24 tickUpper, uint128 liquidity) external;
+    function updatePosition(bytes32 positionId, uint8 status, uint128 liquidity) external;
+    function getPosition(bytes32 positionId) external view returns (Position memory);
 }
 
 /// @notice Executes a signed single-asset-to-Uniswap-V3 LP strategy.
@@ -37,6 +52,9 @@ contract UniswapV3LiquidityAdapter is Ownable, ReentrancyGuard, IERC721Receiver,
     event ProtocolConfigUpdated(address swapRouter, address positionManager, address registry);
     event PoolFeeApproval(uint24 fee, bool approved);
     event LiquidityPositionCreated(bytes32 indexed executionId, bytes32 indexed positionId, address indexed user, uint256 tokenId, uint128 liquidity);
+    event PositionFeesCollected(bytes32 indexed positionId, address indexed user, uint256 amount0, uint256 amount1);
+    event PositionLiquidityReduced(bytes32 indexed positionId, address indexed user, uint128 liquidityRemoved, uint256 amount0, uint256 amount1);
+    event PositionClosed(bytes32 indexed positionId, address indexed user, uint256 tokenId);
     constructor(address initialOwner, address ledger_) Ownable(initialOwner) { require(ledger_ != address(0), "Invalid ledger"); ledger = ledger_; }
     modifier onlyLedger() { require(msg.sender == ledger, "Only ledger"); _; }
     function configure(address router, address manager, address registry_) external onlyOwner {
@@ -61,6 +79,8 @@ contract UniswapV3LiquidityAdapter is Ownable, ReentrancyGuard, IERC721Receiver,
         require(inputBalance >= amount, "Input not funded");
         uint256 initialInput = inputBalance - amount;
         uint256 initialOutput = output.balanceOf(address(this));
+        uint256 initialToken0 = IERC20(p.token0).balanceOf(address(this)) - (asset == p.token0 ? amount : 0);
+        uint256 initialToken1 = IERC20(p.token1).balanceOf(address(this)) - (asset == p.token1 ? amount : 0);
         if (p.swapAmount != 0) {
             input.forceApprove(address(swapRouter), p.swapAmount);
             swapRouter.exactInputSingle(IUniV3SwapRouter.ExactInputSingleParams({
@@ -71,8 +91,8 @@ contract UniswapV3LiquidityAdapter is Ownable, ReentrancyGuard, IERC721Receiver,
         }
         uint256 balance0 = IERC20(p.token0).balanceOf(address(this));
         uint256 balance1 = IERC20(p.token1).balanceOf(address(this));
-        uint256 desired0 = balance0 - initialInput;
-        uint256 desired1 = balance1 - initialOutput;
+        uint256 desired0 = balance0 - initialToken0;
+        uint256 desired1 = balance1 - initialToken1;
         require(desired0 != 0 && desired1 != 0, "Both pool assets required");
         IERC20(p.token0).forceApprove(address(positionManager), desired0);
         IERC20(p.token1).forceApprove(address(positionManager), desired1);
@@ -94,6 +114,70 @@ contract UniswapV3LiquidityAdapter is Ownable, ReentrancyGuard, IERC721Receiver,
         if (outputRemainder != 0) output.safeTransfer(user, outputRemainder);
         emit LiquidityPositionCreated(executionId, positionId, user, tokenId, liquidity);
     }
+    /// @notice Collect accrued Uniswap fees. User must approve this adapter for the NFT.
+    function collectFees(bytes32 positionId, uint256 deadline) external nonReentrant returns (uint256 amount0, uint256 amount1) {
+        require(block.timestamp <= deadline, "Action expired");
+        IQrosPositionRegistry.Position memory p = registry.getPosition(positionId);
+        require(p.user == msg.sender && p.status == 1, "Position not active or not owner");
+        _requireNftApproval(p);
+        (amount0, amount1) = positionManager.collect(IUniV3PositionManager.CollectParams({
+            tokenId: p.tokenId, recipient: msg.sender, amount0Max: type(uint128).max, amount1Max: type(uint128).max
+        }));
+        emit PositionFeesCollected(positionId, msg.sender, amount0, amount1);
+    }
+
+    /// @notice Reduce liquidity while keeping the NFT active. User must approve this adapter.
+    function reduceLiquidity(bytes32 positionId, uint128 liquidityToRemove, uint256 amount0Min, uint256 amount1Min, uint256 deadline)
+        external nonReentrant returns (uint256 amount0, uint256 amount1)
+    {
+        require(block.timestamp <= deadline, "Action expired");
+        IQrosPositionRegistry.Position memory p = registry.getPosition(positionId);
+        require(p.user == msg.sender && p.status == 1, "Position not active or not owner");
+        require(liquidityToRemove != 0 && liquidityToRemove <= p.liquidity, "Invalid liquidity amount");
+        _requireNftApproval(p);
+        (amount0, amount1) = positionManager.decreaseLiquidity(IUniV3PositionManager.DecreaseLiquidityParams({
+            tokenId: p.tokenId, liquidity: liquidityToRemove, amount0Min: amount0Min,
+            amount1Min: amount1Min, deadline: deadline
+        }));
+        positionManager.collect(IUniV3PositionManager.CollectParams({
+            tokenId: p.tokenId, recipient: msg.sender, amount0Max: type(uint128).max, amount1Max: type(uint128).max
+        }));
+        uint128 remaining = p.liquidity - liquidityToRemove;
+        registry.updatePosition(positionId, 1, remaining);
+        emit PositionLiquidityReduced(positionId, msg.sender, liquidityToRemove, amount0, amount1);
+    }
+
+    /// @notice Fully close a position, collect proceeds/fees, burn NFT and update registry.
+    function closePosition(bytes32 positionId, uint256 amount0Min, uint256 amount1Min, uint256 deadline)
+        external nonReentrant returns (uint256 amount0, uint256 amount1)
+    {
+        require(block.timestamp <= deadline, "Action expired");
+        IQrosPositionRegistry.Position memory p = registry.getPosition(positionId);
+        require(p.user == msg.sender && p.status == 1, "Position not active or not owner");
+        _requireNftApproval(p);
+        if (p.liquidity != 0) {
+            (amount0, amount1) = positionManager.decreaseLiquidity(IUniV3PositionManager.DecreaseLiquidityParams({
+                tokenId: p.tokenId, liquidity: p.liquidity, amount0Min: amount0Min,
+                amount1Min: amount1Min, deadline: deadline
+            }));
+        }
+        positionManager.collect(IUniV3PositionManager.CollectParams({
+            tokenId: p.tokenId, recipient: msg.sender, amount0Max: type(uint128).max, amount1Max: type(uint128).max
+        }));
+        positionManager.burn(p.tokenId);
+        registry.updatePosition(positionId, 3, 0);
+        emit PositionClosed(positionId, msg.sender, p.tokenId);
+    }
+
+    function _requireNftApproval(IQrosPositionRegistry.Position memory p) internal view {
+        require(positionManager.ownerOf(p.tokenId) == p.user, "NFT not held by user");
+        require(
+            positionManager.getApproved(p.tokenId) == address(this) ||
+            positionManager.isApprovedForAll(p.user, address(this)),
+            "Approve adapter for NFT"
+        );
+    }
+
     function onERC721Received(address, address, uint256, bytes calldata) external view returns (bytes4) {
         require(msg.sender == address(positionManager), "Unexpected NFT"); return IERC721Receiver.onERC721Received.selector;
     }
