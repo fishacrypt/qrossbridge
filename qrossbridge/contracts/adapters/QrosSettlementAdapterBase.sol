@@ -67,7 +67,7 @@ abstract contract QrosSettlementAdapterBase is Ownable, ReentrancyGuard, IQrosSe
 
     /// @dev Finalizes custody handoff and dispatches in one atomic transaction.
     ///      A dispatch revert rolls the ledger handoff back as well.
-    function initiate(bytes32 transferId) external onlyCoordinator nonReentrant {
+    function initiate(bytes32 transferId) external override onlyCoordinator nonReentrant {
         require(!initiated[transferId], "Already initiated");
         (address user, address asset, address destinationAsset, address recipient,
          uint256 amount, uint256 destinationChainId, uint8 status) = ledger.outboundTransfers(transferId);
@@ -79,7 +79,7 @@ abstract contract QrosSettlementAdapterBase is Ownable, ReentrancyGuard, IQrosSe
     }
 
     /// @notice Anyone may submit a proof; only the configured verifier decides validity.
-    function proveAndFinalize(bytes32 transferId, bytes calldata proof) external nonReentrant {
+    function proveAndFinalize(bytes32 transferId, bytes calldata proof) external override nonReentrant {
         require(!inboundProcessed[transferId], "Already processed");
         (bool valid, uint256 sourceChainId, address sourceAsset, address recipient, address asset, uint256 amount) =
             verifier.verifyDelivery(transferId, proof);
@@ -94,7 +94,7 @@ abstract contract QrosSettlementAdapterBase is Ownable, ReentrancyGuard, IQrosSe
 
     /// @notice Recovery is only valid with protocol-authenticated return evidence.
     ///         Child adapter must return the exact source asset to the ledger first.
-    function cancelOrRecover(bytes32 transferId, bytes calldata recoveryData) external nonReentrant {
+    function cancelOrRecover(bytes32 transferId, bytes calldata recoveryData) external override nonReentrant {
         require(!recoveryProcessed[transferId], "Recovery already processed");
         (address user, address asset,,,,,uint8 status) = ledger.outboundTransfers(transferId);
         require(user != address(0), "Unknown transfer");
