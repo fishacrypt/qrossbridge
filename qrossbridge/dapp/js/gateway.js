@@ -84,7 +84,11 @@
     'function requestTransfer(bytes32 transferId,address asset,uint256 amount,uint256 destinationChainId,address destinationAsset,address recipient,address adapter)',
     'function initiate(bytes32 transferId)',
     'event TransferRequested(bytes32 indexed transferId,address indexed user,address indexed asset,uint256 amount,uint256 destinationChainId,address adapter)',
-    'event TransferInitiated(bytes32 indexed transferId,address indexed adapter)'
+    'event TransferInitiated(bytes32 indexed transferId,address indexed adapter)',
+    'event OutboundTransferFinalized(bytes32 indexed transferId,address indexed adapter,uint256 amount)',
+    'event OutboundTransferCancelled(bytes32 indexed transferId,address indexed user,uint256 amount)',
+    'event OutboundTransferRecovered(bytes32 indexed transferId,address indexed user,uint256 amount)',
+    'event InboundTransferCredited(bytes32 indexed transferId,address indexed user,address indexed asset,uint256 amount,uint256 sourceChainId)'
   ];
   let pendingTransferId=null;
   function configuredRoutes(){
@@ -161,8 +165,19 @@
         const row=document.createElement('div');row.className='gateway-asset';const id=document.createElement('b');id.textContent=ev.args.transferId.slice(0,10)+'…';
         const detail=document.createElement('span');const asset=(c.assets||[]).find(a=>a.address?.toLowerCase()===ev.args.asset.toLowerCase());
         detail.textContent='Chain '+ev.args.destinationChainId+' · '+ethers.formatUnits(ev.args.amount,Number(asset?.decimals??18))+' '+(asset?.symbol||'tokens');
-        const state=document.createElement('span');state.textContent='Requested · destination settlement not yet verified';
-        try{const initiated=await contract.queryFilter(contract.filters.TransferInitiated(ev.args.transferId),ev.blockNumber,latest);if(initiated.length)state.textContent='Initiated · awaiting independently verified settlement'}catch{}
+        const state=document.createElement('span');state.textContent='Requested · funds reserved in Gateway';
+        try{
+          const ledger=new ethers.Contract(c.ledger,ABI,provider);
+          const end=latest;
+          const finalized=await ledger.queryFilter(ledger.filters.OutboundTransferFinalized(ev.args.transferId),ev.blockNumber,end);
+          const cancelled=await ledger.queryFilter(ledger.filters.OutboundTransferCancelled(ev.args.transferId),ev.blockNumber,end);
+          const recovered=await ledger.queryFilter(ledger.filters.OutboundTransferRecovered(ev.args.transferId),ev.blockNumber,end);
+          const initiated=await contract.queryFilter(contract.filters.TransferInitiated(ev.args.transferId),ev.blockNumber,end);
+          if(recovered.length)state.textContent='Recovered · returned to available balance';
+          else if(cancelled.length)state.textContent='Cancelled · returned to available balance';
+          else if(finalized.length)state.textContent='Source dispatched · destination proof still required';
+          else if(initiated.length)state.textContent='Initiation recorded · awaiting source dispatch';
+        }catch{}
         row.append(id,detail,state);root.append(row);
       }
     }catch(e){root.textContent='Transfer history unavailable: '+(e?.shortMessage||e?.message||'RPC query failed')}
