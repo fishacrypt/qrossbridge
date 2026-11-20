@@ -24,6 +24,9 @@ contract QrosQuorumAttestationVerifier is Ownable, IQrosSettlementProofVerifier 
     bytes32 private constant CANCEL_TYPEHASH = keccak256(
         "Cancellation(bytes32 transferId,uint256 sourceChainId,uint256 deadline)"
     );
+    bytes32 private constant OUTBOUND_SETTLED_TYPEHASH = keccak256(
+        "OutboundSettled(bytes32 transferId,uint256 sourceChainId,uint256 destinationChainId,address sourceAsset,uint256 amount,uint256 deadline)"
+    );
 
     mapping(address => bool) public isSigner;
     mapping(bytes32 => bool) public enabledRoute;
@@ -119,6 +122,26 @@ contract QrosQuorumAttestationVerifier is Ownable, IQrosSettlementProofVerifier 
         if (transferId == bytes32(0) || sourceChainId != block.chainid || block.timestamp > deadline) return false;
         bytes32 structHash = keccak256(abi.encode(CANCEL_TYPEHASH, transferId, sourceChainId, deadline));
         return _hasQuorum(_digest(structHash), signatures);
+    }
+
+    function verifyOutboundSettlement(bytes32 transferId, bytes calldata proof)
+        external view returns (bool valid, uint256 destinationChainId, address sourceAsset, uint256 amount)
+    {
+        uint256 sourceChainId;
+        uint256 deadline;
+        bytes[] memory signatures;
+        (sourceChainId, destinationChainId, sourceAsset, amount, deadline, signatures) =
+            abi.decode(proof, (uint256,uint256,address,uint256,uint256,bytes[]));
+        if (
+            transferId == bytes32(0) || sourceChainId != block.chainid ||
+            destinationChainId == 0 || destinationChainId == sourceChainId ||
+            sourceAsset == address(0) || amount == 0 || block.timestamp > deadline
+        ) return (false, destinationChainId, sourceAsset, amount);
+        bytes32 structHash = keccak256(abi.encode(
+            OUTBOUND_SETTLED_TYPEHASH, transferId, sourceChainId, destinationChainId,
+            sourceAsset, amount, deadline
+        ));
+        valid = _hasQuorum(_digest(structHash), signatures);
     }
 
     function _digest(bytes32 structHash) private view returns (bytes32) {
