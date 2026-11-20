@@ -59,3 +59,23 @@ The user remains the NFT owner throughout. These functions do not route proceeds
 ## Validation status
 
 No compile or test result is claimed for these additions yet. Per the agreed workflow, implementation is being completed before the next consolidated environment-validation pass.
+
+
+## dApp Gateway dashboard
+
+The dApp now includes a Gateway navigation view and a read-only balance dashboard. It reads `getBalance(user, asset)` from the configured ledger and displays available, in-transit, reserved and deployed amounts separately. It deliberately does not expose deposit/withdraw/transfer buttons until a verified ledger deployment, supported asset list and transaction flows are configured.
+
+The browser configuration contract is:
+
+```js
+window.QROS_GATEWAY_CONFIG = {
+  ledger: "0x<verified-ledger-address>",
+  assets: [
+    { symbol: "USDC", address: "0x<verified-token-address>", decimals: 6 }
+  ]
+};
+```
+
+This configuration must be supplied by the deployment process with chain-specific verified addresses. Do not insert placeholder addresses or reuse addresses from another chain. When multiple assets are configured, the dashboard keeps their balances separate rather than summing unlike tokens. For a single configured asset, the summary metrics show that asset's four buckets.
+
+The dashboard is a read-only integration step, not a claim that Gateway contracts have been deployed or that deposit, withdrawal, settlement or strategy execution is live.
