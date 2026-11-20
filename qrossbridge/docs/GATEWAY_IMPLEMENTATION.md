@@ -205,14 +205,14 @@ This implementation adds a concrete **quorum-attested prefunded-liquidity adapte
 ### Attestation format
 
 The helper exports:
-- `deliveryProof`: source chain, destination chain, recipient, destination asset, amount, deadline and sorted signatures.
+- `deliveryProof`: source chain, destination chain, source asset, recipient, destination asset, amount, deadline and sorted signatures.
 - `outboundSettlementProof`: source chain, destination chain, source asset, amount, deadline and sorted signatures.
 - `recoveryProof`: source chain, source asset, exact amount, deadline and sorted signatures.
 - `cancellationProof`: source chain and deadline.
 
 All signatures use EIP-712 domain name `QROS Quorum Settlement Attestation`, version `1`, the chain ID where the verifier is deployed, and that verifier's address. The contract rejects duplicate or unsorted signer addresses. Signers must independently verify the underlying source/destination events; the contract cannot make dishonest validators honest.
 
-For verifier setup, deploy initially with threshold `1`, add the validator signer addresses, then set the intended threshold (for example, 2-of-3). The verifier owner can change signers, threshold and routes; these powers require multisig custody, timelocks and monitoring before production.
+For verifier setup, deploy initially with threshold `1`, add the validator signer addresses, then set the intended threshold (for example, 2-of-3). The verifier owner can change signers, threshold and routes. A delivery route is keyed by source chain, destination chain, source token and destination token; these powers require multisig custody, timelocks and monitoring before production.
 
 ### Important trust and liquidity model
 
