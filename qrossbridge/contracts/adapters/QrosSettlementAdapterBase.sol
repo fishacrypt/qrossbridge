@@ -99,8 +99,9 @@ abstract contract QrosSettlementAdapterBase is Ownable, ReentrancyGuard, IQrosSe
     /// @notice Anyone may submit a proof; only the configured verifier decides validity.
     function proveAndFinalize(bytes32 transferId, bytes calldata proof) external override nonReentrant {
         require(!inboundProcessed[transferId], "Already processed");
+        bytes memory verifierProof = _deliveryProof(proof);
         (bool valid, uint256 sourceChainId, address sourceAsset, address recipient,
-         address asset, uint256 amount, address destinationLedger) = verifier.verifyDelivery(transferId, proof);
+         address asset, uint256 amount, address destinationLedger) = verifier.verifyDelivery(transferId, verifierProof);
         require(sourceAsset != address(0), "Invalid source asset");
         require(
             valid && sourceChainId != 0 && sourceChainId != block.chainid &&
@@ -108,6 +109,7 @@ abstract contract QrosSettlementAdapterBase is Ownable, ReentrancyGuard, IQrosSe
             "Invalid settlement proof"
         );
         require(recipient != address(0) && amount != 0 && ledger.supportedAssets(asset), "Invalid delivery fields");
+        require(_verifyInboundBridgeProof(transferId, proof, sourceChainId, asset, amount), "Bridge message not finalized");
         inboundProcessed[transferId] = true;
         _releaseInbound(asset, amount);
         ledger.creditInboundTransfer(transferId, recipient, asset, amount, sourceChainId);
@@ -142,6 +144,18 @@ abstract contract QrosSettlementAdapterBase is Ownable, ReentrancyGuard, IQrosSe
 
     function _outboundAmount(bytes32 transferId) private view returns (uint256 amount) {
         (,,,,amount,,) = ledger.outboundTransfers(transferId);
+    }
+
+    /// @dev Protocol adapters may unwrap an envelope before passing the signed attestation to the verifier.
+    function _deliveryProof(bytes calldata proof) internal view virtual returns (bytes memory) {
+        return proof;
+    }
+
+    /// @dev Protocol adapters must bind the attestation to the protocol's consumed/finalized message.
+    function _verifyInboundBridgeProof(
+        bytes32, bytes calldata, uint256, address, uint256
+    ) internal view virtual returns (bool) {
+        return true;
     }
 
     function _dispatchOutbound(
