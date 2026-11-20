@@ -147,7 +147,16 @@ async function main() {
     console.log('  deployed adapter: ' + adapterAddress);
   }
 
-  await send('configure Uniswap router/manager/registry', adapter.configure(swapRouter, positionManager, registryAddress));
+  const configuredRouter = await adapter.swapRouter();
+  const configuredManager = await adapter.positionManager();
+  const configuredRegistry = await adapter.registry();
+  if (same(configuredRouter, ethers.ZeroAddress) && same(configuredManager, ethers.ZeroAddress) &&
+      same(configuredRegistry, ethers.ZeroAddress)) {
+    await send('configure Uniswap router/manager/registry', adapter.configure(swapRouter, positionManager, registryAddress));
+  } else if (!same(configuredRouter, swapRouter) || !same(configuredManager, positionManager) ||
+             !same(configuredRegistry, registryAddress)) {
+    throw new Error('Existing Uniswap adapter protocol configuration differs from config; refusing to overwrite.');
+  }
   await ensureBool('approve pool fee ' + poolFee, () => adapter.allowedPoolFees(poolFee), () => adapter.setPoolFee(poolFee, true));
   if (swapFee !== 0) {
     await ensureBool('approve swap fee ' + swapFee, () => adapter.allowedSwapFees(swapFee), () => adapter.setSwapFee(swapFee, true));
