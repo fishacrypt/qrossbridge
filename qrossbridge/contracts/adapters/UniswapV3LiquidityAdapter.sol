@@ -57,7 +57,9 @@ contract UniswapV3LiquidityAdapter is Ownable, ReentrancyGuard, IERC721Receiver,
         require(p.tickLower < p.tickUpper && p.swapAmount <= amount, "Invalid strategy bounds");
         address outputToken = asset == p.token0 ? p.token1 : p.token0;
         IERC20 input = IERC20(asset); IERC20 output = IERC20(outputToken);
-        uint256 initialInput = input.balanceOf(address(this));
+        uint256 inputBalance = input.balanceOf(address(this));
+        require(inputBalance >= amount, "Input not funded");
+        uint256 initialInput = inputBalance - amount;
         uint256 initialOutput = output.balanceOf(address(this));
         if (p.swapAmount != 0) {
             input.forceApprove(address(swapRouter), p.swapAmount);
