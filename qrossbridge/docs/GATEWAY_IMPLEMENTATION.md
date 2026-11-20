@@ -280,3 +280,46 @@ The EIP-712 intent authorizes the exact adapter-data hash, input token, amount, 
 ### Test status
 
 The execution authorization integration test has been added to the consolidated `npm test` script. It is authored but has not been executed. The Uniswap adapter has not been validated against live canonical Uniswap V3 contracts, and no protocol deployment or strategy activation is implied.
+
+
+## Gateway execution UI and position visibility
+
+The Gateway view now includes a configured Uniswap V3 execution panel. It is deliberately inactive unless the deployment supplies a complete, verified execution configuration:
+
+```js
+window.QROS_GATEWAY_CONFIG = {
+  chainId: 19480, // chain hosting this ledger/router/adapter
+  ledger: "0x<verified-ledger>",
+  assets: [
+    { symbol: "USDC", address: "0x<verified-token>", decimals: 6 }
+  ],
+  execution: {
+    chainId: 19480,
+    router: "0x<verified-QrosExecutionRouter>",
+    adapter: "0x<verified-UniswapV3LiquidityAdapter>",
+    positionRegistry: "0x<verified-QrosPositionRegistry>",
+    strategyId: "0x<32-byte-approved-strategy-id>",
+    asset: "0x<verified-input-token>",
+    token0: "0x<lower-address-token>",
+    token1: "0x<higher-address-token>",
+    symbol0: "USDC",
+    symbol1: "WETH",
+    decimals: 6,
+    decimals0: 6,
+    decimals1: 18,
+    poolFee: 3000,
+    swapFee: 3000,
+    tickLower: -887220,
+    tickUpper: 887220,
+    label: "USDC / WETH · 0.30%"
+  }
+};
+```
+
+The UI verifies that the configured router points to the configured ledger, that the ledger points to the configured adapter, that the input asset is enabled, and that the strategy ID, ordered token pair and fee tiers are approved on-chain. It then builds the exact adapter parameter tuple, hashes it into the EIP-712 intent, requests the user's signature, and submits the signed intent to the router. The user supplies total input, swap amount, minimum swap output and minimum token amounts for minting. The UI uses a short execution deadline and displays the configured pool range.
+
+After execution, the UI reads the user's position IDs from the configured registry and displays the NFT ID, token pair, fee tier, tick range, liquidity and status. The NFT itself is transferred to the user's wallet; the registry is an index, not NFT custody.
+
+**Configuration warning:** the example values are placeholders, not deployed addresses or a live QMS/Uniswap route. The tick range is illustrative and must be selected for the target pool and price. Do not copy the example configuration into production. The UI must only be enabled with official chain-specific Uniswap addresses, verified token decimals, a real pool, approved strategy pair and fee tiers, and a reviewed deployment.
+
+The current panel covers execution authorization and position visibility. It does not yet implement a user interface for fee collection, liquidity reduction or closing an NFT position. Those actions remain available only through the adapter's explicit user-approved contract methods or the canonical Uniswap interface.
