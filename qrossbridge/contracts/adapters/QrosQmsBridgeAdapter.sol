@@ -33,12 +33,15 @@ contract QrosQmsBridgeAdapter is QrosSettlementAdapterBase {
     uint256 public immutable hubChainId;
     address public immutable hubBridge;
     address public immutable hubWQMS;
+    address public immutable localBridge;
+    address public immutable localToken;
     IQrosQmsBridgeProofVerifier public bridgeVerifier;
     mapping(uint256 => RemoteRoute) public remoteRoutes;
     mapping(bytes32 => bool) public outboundMessageUsed;
 
     event RemoteRouteUpdated(uint256 indexed chainId, address bridge, address token, address adapter, bool enabled);
     event BridgeVerifierUpdated(address indexed verifier);
+    event SourceLiquidityRefunded(bytes32 indexed transferId, address indexed asset, uint256 amount);
     event QmsBridgeDispatch(bytes32 indexed transferId, uint256 indexed destinationChainId, bytes32 bridgeMessageId, address indexed destinationAdapter, uint256 amount);
     event QmsBridgeInbound(bytes32 indexed transferId, bytes32 indexed bridgeMessageId, address indexed beneficiary, address asset, uint256 amount);
 
@@ -50,17 +53,22 @@ contract QrosQmsBridgeAdapter is QrosSettlementAdapterBase {
         address bridgeVerifier_,
         uint256 hubChainId_,
         address hubBridge_,
-        address hubWQMS_
+        address hubWQMS_,
+        address localBridge_,
+        address localToken_
     ) QrosSettlementAdapterBase(initialOwner, ledger_, settlementVerifier_, coordinator_) {
         require(
             bridgeVerifier_ != address(0) && hubChainId_ != 0 &&
-            hubBridge_ != address(0) && hubWQMS_ != address(0),
+            hubBridge_ != address(0) && hubWQMS_ != address(0) &&
+            localBridge_ != address(0) && localToken_ != address(0),
             "Invalid QMS bridge config"
         );
         bridgeVerifier = IQrosQmsBridgeProofVerifier(bridgeVerifier_);
         hubChainId = hubChainId_;
         hubBridge = hubBridge_;
         hubWQMS = hubWQMS_;
+        localBridge = localBridge_;
+        localToken = localToken_;
     }
 
     function setBridgeVerifier(address next) external onlyOwner {
@@ -90,18 +98,16 @@ contract QrosQmsBridgeAdapter is QrosSettlementAdapterBase {
         outboundMessageUsed[transferId] = true;
 
         bytes32 bridgeMessageId;
+        uint256 nonceBefore = _bridgeNonce(localBridge);
         if (block.chainid == hubChainId) {
-            require(asset == hubWQMS, "Source asset is not hub wQMS");
-            uint256 nonceBefore = _hubNonce();
+            require(localBridge == hubBridge && asset == hubWQMS, "Invalid hub-side adapter configuration");
             IERC20(asset).forceApprove(hubBridge, amount);
             IQmsHubGateway(hubBridge).depositWQMS(amount, destinationChainId, route.adapter);
-            bridgeMessageId = keccak256(abi.encode(block.chainid, nonceBefore + 1));
         } else {
-            require(asset == IQmsSpokeGateway(addressFromBridge()).token(), "Source asset is not local spoke wQMS");
-            uint256 nonceBefore = _spokeNonce();
-            IQmsSpokeGateway(addressFromBridge()).bridgeBackFor(address(this), amount, route.adapter, false);
-            bridgeMessageId = keccak256(abi.encode(block.chainid, nonceBefore + 1));
+            require(localBridge != hubBridge && asset == localToken, "Invalid spoke-side adapter configuration");
+            IQmsSpokeGateway(localBridge).bridgeBackFor(address(this), amount, route.adapter, false);
         }
+        bridgeMessageId = keccak256(abi.encode(block.chainid, nonceBefore + 1));
         emit QmsBridgeDispatch(transferId, destinationChainId, bridgeMessageId, route.adapter, amount);
     }
 
@@ -136,8 +142,8 @@ contract QrosQmsBridgeAdapter is QrosSettlementAdapterBase {
         RemoteRoute memory sourceRoute = remoteRoutes[sourceChainId];
         address expectedSourceBridge = sourceChainId == hubChainId ? hubBridge : sourceRoute.bridge;
         address expectedSourceToken = sourceChainId == hubChainId ? hubWQMS : sourceRoute.token;
-        address expectedDestinationBridge = block.chainid == hubChainId ? hubBridge : _localSpokeBridge();
-        address expectedDestinationToken = block.chainid == hubChainId ? hubWQMS : _localSpokeToken();
+        address expectedDestinationBridge = localBridge;
+        address expectedDestinationToken = localToken;
 
         return valid && provedSourceChain == sourceChainId && destinationChain == block.chainid &&
             sourceBridge == expectedSourceBridge && destinationBridge == expectedDestinationBridge &&
@@ -168,31 +174,10 @@ contract QrosQmsBridgeAdapter is QrosSettlementAdapterBase {
         (,,,,amount,,) = ledger.outboundTransfers(transferId);
     }
 
-    function _hubNonce() private view returns (uint256 value) {
-        (bool ok, bytes memory data) = hubBridge.staticcall(abi.encodeWithSignature("nonce()"));
-        require(ok && data.length >= 32, "Hub nonce unavailable");
+    function _bridgeNonce(address bridge) private view returns (uint256 value) {
+        (bool ok, bytes memory data) = bridge.staticcall(abi.encodeWithSignature("nonce()"));
+        require(ok && data.length >= 32, "Bridge nonce unavailable");
         value = abi.decode(data, (uint256));
-    }
-
-    function _spokeNonce() private view returns (uint256 value) {
-        (bool ok, bytes memory data) = _localSpokeBridge().staticcall(abi.encodeWithSignature("nonce()"));
-        require(ok && data.length >= 32, "Spoke nonce unavailable");
-        value = abi.decode(data, (uint256));
-    }
-
-    function _localSpokeBridge() private view returns (address) {
-        return addressFromBridge();
-    }
-
-    function _localSpokeToken() private view returns (address) {
-        return IQmsSpokeGateway(addressFromBridge()).token();
-    }
-
-    function addressFromBridge() internal view returns (address) {
-        // For a spoke-side adapter, the local spoke endpoint is configured under its own chain ID.
-        RemoteRoute memory route = remoteRoutes[block.chainid];
-        require(route.bridge != address(0), "Local spoke bridge not configured");
-        return route.bridge;
     }
 
     function fundAdapterToken(address asset, uint256 amount) external {
