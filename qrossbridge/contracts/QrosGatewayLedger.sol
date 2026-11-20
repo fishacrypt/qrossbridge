@@ -52,7 +52,10 @@ contract QrosGatewayLedger is Ownable, Pausable, ReentrancyGuard {
     // available + inTransit + reserved. Deployed is informational, external value.
     mapping(address => uint256) public custodyLiability;
 
+    // Legacy default adapter plus asset-specific adapters for a unified multi-asset Gateway.
+    // Each asset can use its own settlement rail (e.g. QMS bridge or prefunded stablecoin liquidity).
     address public settlementAdapter;
+    mapping(address => address) public settlementAdapters;
     address public executionAdapter;
     address public executionRouter;
     address public transferCoordinator;
@@ -64,6 +67,7 @@ contract QrosGatewayLedger is Ownable, Pausable, ReentrancyGuard {
 
     event AssetSupportUpdated(address indexed asset, bool supported);
     event SettlementAdapterUpdated(address indexed previousAdapter, address indexed newAdapter);
+    event AssetSettlementAdapterUpdated(address indexed asset, address indexed previousAdapter, address indexed newAdapter);
     event ExecutionAdapterUpdated(address indexed previousAdapter, address indexed newAdapter);
     event ExecutionRouterUpdated(address indexed previousRouter, address indexed newRouter);
     event TransferCoordinatorUpdated(address indexed previousCoordinator, address indexed newCoordinator);
@@ -81,8 +85,18 @@ contract QrosGatewayLedger is Ownable, Pausable, ReentrancyGuard {
     event PositionProceedsCredited(address indexed user, address indexed asset, uint256 amount, address indexed deployedAsset, uint256 deployedReduction);
     event DeployedCostBasisReleased(address indexed user, address indexed asset, uint256 amount);
 
-    modifier onlySettlementAdapter() {
-        require(msg.sender == settlementAdapter && settlementAdapter != address(0), "Not settlement adapter");
+    modifier onlySettlementAdapterForAsset(address asset) {
+        address configured = settlementAdapters[asset];
+        if (configured == address(0)) configured = settlementAdapter;
+        require(configured != address(0) && msg.sender == configured, "Not settlement adapter for asset");
+        _;
+    }
+
+    modifier onlySettlementAdapterForTransfer(bytes32 transferId) {
+        address asset = outboundTransfers[transferId].asset;
+        address configured = settlementAdapters[asset];
+        if (configured == address(0)) configured = settlementAdapter;
+        require(asset != address(0) && configured != address(0) && msg.sender == configured, "Not settlement adapter for transfer");
         _;
     }
 
@@ -116,6 +130,16 @@ contract QrosGatewayLedger is Ownable, Pausable, ReentrancyGuard {
         require(adapter != address(0), "Invalid adapter");
         emit SettlementAdapterUpdated(settlementAdapter, adapter);
         settlementAdapter = adapter;
+    }
+
+    /// @notice Assign a dedicated settlement adapter to one supported asset.
+    /// @dev Allows QMS/wQMS and each stablecoin to use distinct settlement rails on one ledger.
+    function setSettlementAdapterForAsset(address asset, address adapter) external onlyOwner {
+        require(asset != address(0) && supportedAssets[asset], "Asset not supported");
+        require(adapter != address(0), "Invalid adapter");
+        address previous = settlementAdapters[asset];
+        settlementAdapters[asset] = adapter;
+        emit AssetSettlementAdapterUpdated(asset, previous, adapter);
     }
 
     function setExecutionAdapter(address adapter) external onlyOwner {
@@ -206,7 +230,7 @@ contract QrosGatewayLedger is Ownable, Pausable, ReentrancyGuard {
 
     /// @notice The settlement adapter calls this only in the transaction that
     ///         initiates the underlying source-chain settlement.
-    function finalizeOutboundTransfer(bytes32 transferId) external onlySettlementAdapter nonReentrant {
+    function finalizeOutboundTransfer(bytes32 transferId) external onlySettlementAdapterForTransfer(transferId) nonReentrant {
         OutboundTransfer storage transfer = outboundTransfers[transferId];
         require(transfer.status == TransferStatus.InTransit, "Transfer not in transit");
         transfer.status = TransferStatus.Finalized;
@@ -216,7 +240,7 @@ contract QrosGatewayLedger is Ownable, Pausable, ReentrancyGuard {
         emit OutboundTransferFinalized(transferId, msg.sender, transfer.amount);
     }
 
-    function cancelOutboundTransfer(bytes32 transferId) external onlySettlementAdapter {
+    function cancelOutboundTransfer(bytes32 transferId) external onlySettlementAdapterForTransfer(transferId) {
         OutboundTransfer storage transfer = outboundTransfers[transferId];
         require(transfer.status == TransferStatus.InTransit, "Transfer not in transit");
         transfer.status = TransferStatus.Cancelled;
@@ -246,7 +270,7 @@ contract QrosGatewayLedger is Ownable, Pausable, ReentrancyGuard {
     ///         into this ledger in the same transaction before calling.
     function creditInboundTransfer(
         bytes32 transferId, address user, address asset, uint256 amount, uint256 sourceChainId
-    ) external onlySettlementAdapter whenNotPaused {
+    ) external onlySettlementAdapterForAsset(asset) whenNotPaused {
         require(transferId != bytes32(0), "Invalid transfer ID");
         require(!processedInboundTransfers[transferId], "Transfer already credited");
         require(user != address(0), "Invalid user");
