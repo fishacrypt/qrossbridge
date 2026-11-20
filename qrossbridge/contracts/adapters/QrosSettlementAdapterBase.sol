@@ -81,8 +81,9 @@ abstract contract QrosSettlementAdapterBase is Ownable, ReentrancyGuard, IQrosSe
     /// @notice Anyone may submit a proof; only the configured verifier decides validity.
     function proveAndFinalize(bytes32 transferId, bytes calldata proof) external nonReentrant {
         require(!inboundProcessed[transferId], "Already processed");
-        (bool valid, uint256 sourceChainId, address recipient, address asset, uint256 amount) =
+        (bool valid, uint256 sourceChainId, address sourceAsset, address recipient, address asset, uint256 amount) =
             verifier.verifyDelivery(transferId, proof);
+        require(sourceAsset != address(0), "Invalid source asset");
         require(valid && sourceChainId != 0 && sourceChainId != block.chainid, "Invalid settlement proof");
         require(recipient != address(0) && amount != 0 && ledger.supportedAssets(asset), "Invalid delivery fields");
         inboundProcessed[transferId] = true;
