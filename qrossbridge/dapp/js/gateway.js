@@ -154,13 +154,15 @@
     const root=$g('gatewayTransferHistory'),c=cfg();if(!root||!c.coordinator||!ethers.isAddress(c.coordinator)||typeof S==='undefined'||!S.provider||!S.account)return;
     try{
       const provider=new ethers.BrowserProvider(S.provider),contract=new ethers.Contract(c.coordinator,COORDINATOR_ABI,provider);
-      const events=await contract.queryFilter(contract.filters.TransferRequested(null,S.account),-5000,'latest');
+      const latest=await provider.getBlockNumber();const events=await contract.queryFilter(contract.filters.TransferRequested(null,S.account),Math.max(0,latest-5000),latest);
       root.replaceChildren();
       if(!events.length){root.textContent='No Gateway transfer requests found in the recent event window.';return}
       for(const ev of events.slice(-20).reverse()){
         const row=document.createElement('div');row.className='gateway-asset';const id=document.createElement('b');id.textContent=ev.args.transferId.slice(0,10)+'…';
-        const detail=document.createElement('span');detail.textContent='Chain '+ev.args.destinationChainId+' · '+ethers.formatUnits(ev.args.amount,6)+' units';
-        const state=document.createElement('span');state.textContent='Requested · verify destination settlement separately';
+        const detail=document.createElement('span');const asset=(c.assets||[]).find(a=>a.address?.toLowerCase()===ev.args.asset.toLowerCase());
+        detail.textContent='Chain '+ev.args.destinationChainId+' · '+ethers.formatUnits(ev.args.amount,Number(asset?.decimals??18))+' '+(asset?.symbol||'tokens');
+        const state=document.createElement('span');state.textContent='Requested · destination settlement not yet verified';
+        try{const initiated=await contract.queryFilter(contract.filters.TransferInitiated(ev.args.transferId),ev.blockNumber,latest);if(initiated.length)state.textContent='Initiated · awaiting independently verified settlement'}catch{}
         row.append(id,detail,state);root.append(row);
       }
     }catch(e){root.textContent='Transfer history unavailable: '+(e?.shortMessage||e?.message||'RPC query failed')}
