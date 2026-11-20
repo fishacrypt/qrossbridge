@@ -17,7 +17,7 @@ import "./interfaces/IQrosExecutionAdapter.sol";
 contract QrosGatewayLedger is Ownable, Pausable, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
-    enum TransferStatus { None, InTransit, Finalized, Cancelled }
+    enum TransferStatus { None, InTransit, Finalized, Cancelled, Recovered }
     enum ExecutionStatus { None, Reserved, Completed, Released }
 
     struct Balance {
@@ -72,6 +72,7 @@ contract QrosGatewayLedger is Ownable, Pausable, ReentrancyGuard {
     event OutboundTransferStarted(bytes32 indexed transferId, address indexed user, address indexed asset, uint256 amount, uint256 destinationChainId, address destinationAsset, address recipient);
     event OutboundTransferFinalized(bytes32 indexed transferId, address indexed adapter, uint256 amount);
     event OutboundTransferCancelled(bytes32 indexed transferId, address indexed user, uint256 amount);
+    event OutboundTransferRecovered(bytes32 indexed transferId, address indexed user, uint256 amount);
     event InboundTransferCredited(bytes32 indexed transferId, address indexed user, address indexed asset, uint256 amount, uint256 sourceChainId);
     event ExecutionReserved(bytes32 indexed executionId, address indexed user, address indexed asset, uint256 amount, bytes32 strategyId);
     event ExecutionCompleted(bytes32 indexed executionId, address indexed adapter, uint256 amount);
@@ -221,6 +222,22 @@ contract QrosGatewayLedger is Ownable, Pausable, ReentrancyGuard {
         b.inTransit -= transfer.amount;
         b.available += transfer.amount;
         emit OutboundTransferCancelled(transferId, transfer.user, transfer.amount);
+    }
+
+    /// @notice Recover funds returned by a settlement adapter after source finalization.
+    /// @dev The adapter must return the exact source asset to this ledger before calling.
+    ///      This is distinct from cancellation, which is only valid before finalization.
+    function recoverFinalizedOutboundTransfer(bytes32 transferId) external onlySettlementAdapter nonReentrant {
+        OutboundTransfer storage transfer = outboundTransfers[transferId];
+        require(transfer.status == TransferStatus.Finalized, "Transfer not finalized");
+        require(
+            IERC20(transfer.asset).balanceOf(address(this)) >= custodyLiability[transfer.asset] + transfer.amount,
+            "Recovery funds not received"
+        );
+        transfer.status = TransferStatus.Recovered;
+        balances[transfer.user][transfer.asset].available += transfer.amount;
+        custodyLiability[transfer.asset] += transfer.amount;
+        emit OutboundTransferRecovered(transferId, transfer.user, transfer.amount);
     }
 
     /// @notice Adapter must prove settlement and transfer destination tokens
