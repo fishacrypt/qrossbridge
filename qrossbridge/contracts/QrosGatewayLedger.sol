@@ -77,7 +77,7 @@ contract QrosGatewayLedger is Ownable, Pausable, ReentrancyGuard {
     event ExecutionReserved(bytes32 indexed executionId, address indexed user, address indexed asset, uint256 amount, bytes32 strategyId);
     event ExecutionCompleted(bytes32 indexed executionId, address indexed adapter, uint256 amount);
     event ExecutionReleased(bytes32 indexed executionId, address indexed user, uint256 amount);
-    event ExecutionSettled(bytes32 indexed executionId, uint256 spent, uint256 returnedToAvailable, bytes32 positionId);
+    event ExecutionSettled(bytes32 indexed executionId, uint256 spent, uint256 returnedToAvailable, bytes32 positionId);\n    event PositionProceedsCredited(address indexed user, address indexed asset, uint256 amount, address indexed deployedAsset, uint256 deployedReduction);
 
     modifier onlySettlementAdapter() {
         require(msg.sender == settlementAdapter && settlementAdapter != address(0), "Not settlement adapter");
@@ -354,6 +354,29 @@ contract QrosGatewayLedger is Ownable, Pausable, ReentrancyGuard {
         b.reserved -= execution.amount;
         b.available += execution.amount;
         emit ExecutionReleased(executionId, execution.user, execution.amount);
+    }
+
+    /// @notice Reconcile verified position proceeds and release the position's
+    ///         allocated deployed cost basis. The adapter must transfer proceeds
+    ///         into this ledger in the same transaction before calling.
+    function creditPositionProceeds(
+        address user, address asset, uint256 amount,
+        address deployedAsset, uint256 deployedReduction
+    ) external onlyExecutionAdapter nonReentrant {
+        require(user != address(0) && supportedAssets[asset], "Invalid proceeds asset");
+        require(amount != 0 || deployedReduction != 0, "Empty position settlement");
+        Balance storage deployedBalance = balances[user][deployedAsset];
+        require(deployedBalance.deployed >= deployedReduction, "Deployed balance underflow");
+        if (amount != 0) {
+            require(
+                IERC20(asset).balanceOf(address(this)) >= custodyLiability[asset] + amount,
+                "Position proceeds not received"
+            );
+            balances[user][asset].available += amount;
+            custodyLiability[asset] += amount;
+        }
+        if (deployedReduction != 0) deployedBalance.deployed -= deployedReduction;
+        emit PositionProceedsCredited(user, asset, amount, deployedAsset, deployedReduction);
     }
 
     function pause() external onlyOwner { _pause(); }
