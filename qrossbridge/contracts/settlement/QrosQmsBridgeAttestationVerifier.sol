@@ -99,7 +99,7 @@ contract QrosQmsBridgeAttestationVerifier is Ownable, IQrosQmsBridgeProofVerifie
         if (
             transferId == bytes32(0) || sourceChainId == 0 || destinationChainId != block.chainid ||
             sourceChainId == destinationChainId || sourceBridge == address(0) ||
-            destinationBridge == address(0) || sourceToken == address(0) ||
+            destinationBridge == address(0) || sourceAdapter == address(0) || sourceToken == address(0) ||
             destinationToken == address(0) || destinationAdapter == address(0) ||
             beneficiary == address(0) || amount == 0 || bridgeMessageId == bytes32(0) ||
             block.timestamp > deadline ||
