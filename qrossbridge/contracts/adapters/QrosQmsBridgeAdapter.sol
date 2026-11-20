@@ -36,7 +36,7 @@ contract QrosQmsBridgeAdapter is QrosSettlementAdapterBase {
     mapping(uint256 => RemoteRoute) public remoteRoutes;
     mapping(bytes32 => bool) public outboundMessageUsed;
 
-    event RemoteRouteUpdated(uint256 indexed chainId, address bridge, address token, address adapter, bool enabled);
+    event RemoteRouteUpdated(uint256 indexed chainId, address bridge, address token, address adapter, address gatewayLedger, bool enabled);
     event BridgeVerifierUpdated(address indexed verifier);
     event SourceLiquidityRefunded(bytes32 indexed transferId, address indexed asset, uint256 amount);
     event QmsBridgeDispatch(bytes32 indexed transferId, uint256 indexed destinationChainId, bytes32 bridgeMessageId, address indexed destinationAdapter, uint256 amount);
@@ -84,7 +84,7 @@ contract QrosQmsBridgeAdapter is QrosSettlementAdapterBase {
             gatewayLedger != address(0), "Zero route field"
         );
         remoteRoutes[chainId] = RemoteRoute(bridge, token, adapter, gatewayLedger, enabled);
-        emit RemoteRouteUpdated(chainId, bridge, token, adapter, enabled);
+        emit RemoteRouteUpdated(chainId, bridge, token, adapter, gatewayLedger, enabled);
     }
 
     function _dispatchOutbound(
