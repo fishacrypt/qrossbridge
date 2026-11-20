@@ -403,8 +403,10 @@
           const wallet=executionElement('option',{value:'wallet'},'Send proceeds to connected wallet');
           const gateway=executionElement('option',{value:'gateway'},'Return proceeds to QROS Gateway available balance');
           route.append(wallet,gateway);card.append(route);
-          const reduceInput=executionElement('input',{id:'positionReduce_'+id,type:'text',inputmode:'numeric',placeholder:'Liquidity units to remove (optional)',style:'width:100%;min-height:38px;margin:6px 0'});
-          card.append(reduceInput);
+          const reduceInput=executionElement('input',{id:'positionReduce_'+id,type:'text',inputmode:'numeric',placeholder:'Liquidity units to remove',style:'width:100%;min-height:38px;margin:6px 0'});
+          const min0Input=executionElement('input',{id:'positionMin0_'+id,type:'text',inputmode:'numeric',placeholder:'Minimum token0 output (raw units)',style:'width:100%;min-height:38px;margin:6px 0'});
+          const min1Input=executionElement('input',{id:'positionMin1_'+id,type:'text',inputmode:'numeric',placeholder:'Minimum token1 output (raw units)',style:'width:100%;min-height:38px;margin:6px 0'});
+          card.append(reduceInput,min0Input,min1Input);
           const actions=executionElement('div',{className:'gateway-actions'});
           const collect=executionElement('button',{type:'button',className:'btn sm'},'Collect fees');
           const reduce=executionElement('button',{type:'button',className:'btn sm'},'Reduce liquidity');
