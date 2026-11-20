@@ -75,6 +75,8 @@ contract UniswapV3LiquidityAdapter is Ownable, ReentrancyGuard, IERC721Receiver,
             router.code.length != 0 && manager.code.length != 0 && registry_.code.length != 0,
             "Protocol address has no code"
         );
+        address factoryAddress = IUniV3PositionManager(manager).factory();
+        require(factoryAddress.code.length != 0, "Invalid Uniswap factory");
         swapRouter = IUniV3SwapRouter(router); positionManager = IUniV3PositionManager(manager); registry = IQrosPositionRegistry(registry_);
         emit ProtocolConfigUpdated(router, manager, registry_);
     }
