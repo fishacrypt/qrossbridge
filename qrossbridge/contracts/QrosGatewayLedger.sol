@@ -6,30 +6,19 @@ import "@openzeppelin/contracts/utils/Pausable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import "./interfaces/IQrosExecutionAdapter.sol";
 
 /**
  * @title QrosGatewayLedger
- * @notice Custodial accounting ledger for user-owned QROS Gateway balances.
- * @dev This contract is an accounting and custody primitive. It does not itself
- *      bridge assets, verify CCTP attestations, execute swaps or mint LP NFTs.
- *      Those actions belong to separately authorized adapters.
+ * @notice Custodial ledger for persistent, user-owned QROS balances.
+ * @dev Bridge verification and protocol execution are delegated to explicitly
+ *      configured adapters. The ledger never treats a deposit as an execution.
  */
 contract QrosGatewayLedger is Ownable, Pausable, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
-    enum TransferStatus {
-        None,
-        InTransit,
-        Finalized,
-        Cancelled
-    }
-
-    enum ExecutionStatus {
-        None,
-        Reserved,
-        Completed,
-        Released
-    }
+    enum TransferStatus { None, InTransit, Finalized, Cancelled }
+    enum ExecutionStatus { None, Reserved, Completed, Released }
 
     struct Balance {
         uint256 available;
@@ -59,12 +48,14 @@ contract QrosGatewayLedger is Ownable, Pausable, ReentrancyGuard {
     mapping(address => bool) public supportedAssets;
     mapping(address => mapping(address => Balance)) private balances;
 
-    // Available + inTransit + reserved are backed by tokens held by this ledger.
-    // Deployed is an informational record of value handed to an execution adapter.
+    // Liabilities are tokens still held by this ledger for users:
+    // available + inTransit + reserved. Deployed is informational, external value.
     mapping(address => uint256) public custodyLiability;
 
     address public settlementAdapter;
     address public executionAdapter;
+    address public executionRouter;
+    address public transferCoordinator;
     uint256 public executionNonce;
 
     mapping(bytes32 => OutboundTransfer) public outboundTransfers;
@@ -74,39 +65,18 @@ contract QrosGatewayLedger is Ownable, Pausable, ReentrancyGuard {
     event AssetSupportUpdated(address indexed asset, bool supported);
     event SettlementAdapterUpdated(address indexed previousAdapter, address indexed newAdapter);
     event ExecutionAdapterUpdated(address indexed previousAdapter, address indexed newAdapter);
-
+    event ExecutionRouterUpdated(address indexed previousRouter, address indexed newRouter);
+    event TransferCoordinatorUpdated(address indexed previousCoordinator, address indexed newCoordinator);
     event Deposited(address indexed user, address indexed asset, uint256 amount);
     event Withdrawn(address indexed user, address indexed asset, address indexed recipient, uint256 amount);
-
-    event OutboundTransferStarted(
-        bytes32 indexed transferId,
-        address indexed user,
-        address indexed asset,
-        uint256 amount,
-        uint256 destinationChainId,
-        address destinationAsset,
-        address recipient
-    );
+    event OutboundTransferStarted(bytes32 indexed transferId, address indexed user, address indexed asset, uint256 amount, uint256 destinationChainId, address destinationAsset, address recipient);
     event OutboundTransferFinalized(bytes32 indexed transferId, address indexed adapter, uint256 amount);
     event OutboundTransferCancelled(bytes32 indexed transferId, address indexed user, uint256 amount);
-
-    event InboundTransferCredited(
-        bytes32 indexed transferId,
-        address indexed user,
-        address indexed asset,
-        uint256 amount,
-        uint256 sourceChainId
-    );
-
-    event ExecutionReserved(
-        bytes32 indexed executionId,
-        address indexed user,
-        address indexed asset,
-        uint256 amount,
-        bytes32 strategyId
-    );
+    event InboundTransferCredited(bytes32 indexed transferId, address indexed user, address indexed asset, uint256 amount, uint256 sourceChainId);
+    event ExecutionReserved(bytes32 indexed executionId, address indexed user, address indexed asset, uint256 amount, bytes32 strategyId);
     event ExecutionCompleted(bytes32 indexed executionId, address indexed adapter, uint256 amount);
     event ExecutionReleased(bytes32 indexed executionId, address indexed user, uint256 amount);
+    event ExecutionSettled(bytes32 indexed executionId, uint256 spent, uint256 returnedToAvailable, bytes32 positionId);
 
     modifier onlySettlementAdapter() {
         require(msg.sender == settlementAdapter && settlementAdapter != address(0), "Not settlement adapter");
@@ -118,12 +88,23 @@ contract QrosGatewayLedger is Ownable, Pausable, ReentrancyGuard {
         _;
     }
 
+    modifier onlyExecutionRouter() {
+        require(msg.sender == executionRouter && executionRouter != address(0), "Not execution router");
+        _;
+    }
+
+    modifier onlyTransferCoordinator() {
+        require(msg.sender == transferCoordinator && transferCoordinator != address(0), "Not transfer coordinator");
+        _;
+    }
+
     constructor(address initialOwner) Ownable(initialOwner) {
         require(initialOwner != address(0), "Invalid owner");
     }
 
     function setAssetSupport(address asset, bool supported) external onlyOwner {
         require(asset != address(0), "Invalid asset");
+        if (!supported) require(custodyLiability[asset] == 0, "Asset has outstanding liabilities");
         supportedAssets[asset] = supported;
         emit AssetSupportUpdated(asset, supported);
     }
@@ -140,114 +121,94 @@ contract QrosGatewayLedger is Ownable, Pausable, ReentrancyGuard {
         executionAdapter = adapter;
     }
 
+    function setExecutionRouter(address router) external onlyOwner {
+        require(router != address(0), "Invalid router");
+        emit ExecutionRouterUpdated(executionRouter, router);
+        executionRouter = router;
+    }
+
+    function setTransferCoordinator(address coordinator) external onlyOwner {
+        require(coordinator != address(0), "Invalid coordinator");
+        emit TransferCoordinatorUpdated(transferCoordinator, coordinator);
+        transferCoordinator = coordinator;
+    }
+
     function getBalance(address user, address asset) external view returns (
-        uint256 available,
-        uint256 inTransit,
-        uint256 reserved,
-        uint256 deployed
+        uint256 available, uint256 inTransit, uint256 reserved, uint256 deployed
     ) {
         Balance storage b = balances[user][asset];
         return (b.available, b.inTransit, b.reserved, b.deployed);
     }
 
     function deposit(address asset, uint256 amount)
-        external
-        whenNotPaused
-        nonReentrant
-        returns (uint256 received)
+        external whenNotPaused nonReentrant returns (uint256 received)
     {
         require(supportedAssets[asset], "Asset not supported");
         require(amount != 0, "Amount is zero");
-
         IERC20 token = IERC20(asset);
         uint256 beforeBalance = token.balanceOf(address(this));
         token.safeTransferFrom(msg.sender, address(this), amount);
         received = token.balanceOf(address(this)) - beforeBalance;
         require(received == amount, "Fee-on-transfer unsupported");
-
         balances[msg.sender][asset].available += received;
         custodyLiability[asset] += received;
-
         emit Deposited(msg.sender, asset, received);
     }
 
-    function withdraw(address asset, uint256 amount, address recipient)
-        external
-        nonReentrant
-    {
+    function withdraw(address asset, uint256 amount, address recipient) external nonReentrant {
         require(recipient != address(0), "Invalid recipient");
         require(amount != 0, "Amount is zero");
-
         Balance storage b = balances[msg.sender][asset];
         require(b.available >= amount, "Insufficient available balance");
-
         b.available -= amount;
         custodyLiability[asset] -= amount;
-
         IERC20(asset).safeTransfer(recipient, amount);
         emit Withdrawn(msg.sender, asset, recipient, amount);
     }
 
     function beginOutboundTransfer(
-        bytes32 transferId,
-        address asset,
-        uint256 amount,
-        uint256 destinationChainId,
-        address destinationAsset,
-        address recipient
+        bytes32 transferId, address asset, uint256 amount, uint256 destinationChainId,
+        address destinationAsset, address recipient
     ) external whenNotPaused {
-        require(transferId != bytes32(0), "Invalid transfer ID");
+        _beginOutboundTransfer(msg.sender, transferId, asset, amount, destinationChainId, destinationAsset, recipient);
+    }
+
+    function beginOutboundTransferFor(
+        address user, bytes32 transferId, address asset, uint256 amount,
+        uint256 destinationChainId, address destinationAsset, address recipient
+    ) external onlyTransferCoordinator whenNotPaused {
+        _beginOutboundTransfer(user, transferId, asset, amount, destinationChainId, destinationAsset, recipient);
+    }
+
+    function _beginOutboundTransfer(
+        address user, bytes32 transferId, address asset, uint256 amount,
+        uint256 destinationChainId, address destinationAsset, address recipient
+    ) internal {
+        require(user != address(0) && transferId != bytes32(0), "Invalid user or transfer ID");
         require(outboundTransfers[transferId].status == TransferStatus.None, "Transfer ID used");
         require(supportedAssets[asset], "Asset not supported");
         require(amount != 0, "Amount is zero");
         require(destinationChainId != 0 && destinationChainId != block.chainid, "Invalid destination chain");
         require(destinationAsset != address(0) && recipient != address(0), "Invalid destination");
-
-        Balance storage b = balances[msg.sender][asset];
+        Balance storage b = balances[user][asset];
         require(b.available >= amount, "Insufficient available balance");
-
         b.available -= amount;
         b.inTransit += amount;
-
         outboundTransfers[transferId] = OutboundTransfer({
-            user: msg.sender,
-            asset: asset,
-            destinationAsset: destinationAsset,
-            recipient: recipient,
-            amount: amount,
-            destinationChainId: destinationChainId,
-            status: TransferStatus.InTransit
+            user: user, asset: asset, destinationAsset: destinationAsset, recipient: recipient,
+            amount: amount, destinationChainId: destinationChainId, status: TransferStatus.InTransit
         });
-
-        emit OutboundTransferStarted(
-            transferId,
-            msg.sender,
-            asset,
-            amount,
-            destinationChainId,
-            destinationAsset,
-            recipient
-        );
+        emit OutboundTransferStarted(transferId, user, asset, amount, destinationChainId, destinationAsset, recipient);
     }
 
-    /**
-     * @notice Called by the settlement adapter in the same transaction in
-     *         which it submits the underlying bridge burn/transfer.
-     *         If the adapter's bridge call reverts, this state change and token
-     *         transfer revert atomically as well.
-     */
-    function finalizeOutboundTransfer(bytes32 transferId)
-        external
-        onlySettlementAdapter
-        nonReentrant
-    {
+    /// @notice The settlement adapter calls this only in the transaction that
+    ///         initiates the underlying source-chain settlement.
+    function finalizeOutboundTransfer(bytes32 transferId) external onlySettlementAdapter nonReentrant {
         OutboundTransfer storage transfer = outboundTransfers[transferId];
         require(transfer.status == TransferStatus.InTransit, "Transfer not in transit");
-
         transfer.status = TransferStatus.Finalized;
         balances[transfer.user][transfer.asset].inTransit -= transfer.amount;
         custodyLiability[transfer.asset] -= transfer.amount;
-
         IERC20(transfer.asset).safeTransfer(msg.sender, transfer.amount);
         emit OutboundTransferFinalized(transferId, msg.sender, transfer.amount);
     }
@@ -255,26 +216,17 @@ contract QrosGatewayLedger is Ownable, Pausable, ReentrancyGuard {
     function cancelOutboundTransfer(bytes32 transferId) external onlySettlementAdapter {
         OutboundTransfer storage transfer = outboundTransfers[transferId];
         require(transfer.status == TransferStatus.InTransit, "Transfer not in transit");
-
         transfer.status = TransferStatus.Cancelled;
         Balance storage b = balances[transfer.user][transfer.asset];
         b.inTransit -= transfer.amount;
         b.available += transfer.amount;
-
         emit OutboundTransferCancelled(transferId, transfer.user, transfer.amount);
     }
 
-    /**
-     * @notice The adapter must first transfer the verified destination tokens
-     *         into this contract, then call this function in the same tx.
-     *         A transfer ID can only ever be credited once.
-     */
+    /// @notice Adapter must prove settlement and transfer destination tokens
+    ///         into this ledger in the same transaction before calling.
     function creditInboundTransfer(
-        bytes32 transferId,
-        address user,
-        address asset,
-        uint256 amount,
-        uint256 sourceChainId
+        bytes32 transferId, address user, address asset, uint256 amount, uint256 sourceChainId
     ) external onlySettlementAdapter whenNotPaused {
         require(transferId != bytes32(0), "Invalid transfer ID");
         require(!processedInboundTransfers[transferId], "Transfer already credited");
@@ -282,70 +234,86 @@ contract QrosGatewayLedger is Ownable, Pausable, ReentrancyGuard {
         require(supportedAssets[asset], "Asset not supported");
         require(amount != 0, "Amount is zero");
         require(sourceChainId != 0 && sourceChainId != block.chainid, "Invalid source chain");
-
-        // Ensure the inbound tokens are actually present before creating a claim.
-        require(
-            IERC20(asset).balanceOf(address(this)) >= custodyLiability[asset] + amount,
-            "Inbound funds not received"
-        );
-
+        require(IERC20(asset).balanceOf(address(this)) >= custodyLiability[asset] + amount, "Inbound funds not received");
         processedInboundTransfers[transferId] = true;
         balances[user][asset].available += amount;
         custodyLiability[asset] += amount;
-
         emit InboundTransferCredited(transferId, user, asset, amount, sourceChainId);
     }
 
     function reserveExecution(address asset, uint256 amount, bytes32 strategyId)
-        external
-        whenNotPaused
-        returns (bytes32 executionId)
+        external whenNotPaused returns (bytes32 executionId)
     {
+        executionId = _reserveExecution(msg.sender, asset, amount, strategyId);
+    }
+
+    function reserveExecutionFor(address user, address asset, uint256 amount, bytes32 strategyId)
+        external onlyExecutionRouter whenNotPaused returns (bytes32 executionId)
+    {
+        executionId = _reserveExecution(user, asset, amount, strategyId);
+    }
+
+    function _reserveExecution(address user, address asset, uint256 amount, bytes32 strategyId)
+        internal returns (bytes32 executionId)
+    {
+        require(user != address(0), "Invalid user");
         require(supportedAssets[asset], "Asset not supported");
         require(amount != 0, "Amount is zero");
         require(strategyId != bytes32(0), "Invalid strategy");
-
-        Balance storage b = balances[msg.sender][asset];
+        Balance storage b = balances[user][asset];
         require(b.available >= amount, "Insufficient available balance");
-
-        executionId = keccak256(
-            abi.encode(block.chainid, address(this), msg.sender, executionNonce++)
-        );
-
+        executionId = keccak256(abi.encode(block.chainid, address(this), user, executionNonce++));
         b.available -= amount;
         b.reserved += amount;
-
-        executions[executionId] = Execution({
-            user: msg.sender,
-            asset: asset,
-            amount: amount,
-            strategyId: strategyId,
-            status: ExecutionStatus.Reserved
-        });
-
-        emit ExecutionReserved(executionId, msg.sender, asset, amount, strategyId);
+        executions[executionId] = Execution(user, asset, amount, strategyId, ExecutionStatus.Reserved);
+        emit ExecutionReserved(executionId, user, asset, amount, strategyId);
     }
 
-    /**
-     * @notice Hands the reserved input tokens to the approved execution
-     *         adapter. The adapter must perform the user-authorized strategy.
-     *         The deployed bucket is an accounting record, not a redeemable
-     *         token balance; external positions are tracked separately.
-     */
-    function completeExecution(bytes32 executionId)
-        external
-        onlyExecutionAdapter
-        nonReentrant
+    /// @notice Atomic adapter execution. If the adapter fails, all ledger and
+    ///         token movements revert. Unspent input is returned to available.
+    function executeReserved(bytes32 executionId, bytes calldata adapterData)
+        external onlyExecutionRouter nonReentrant returns (bytes32 positionId)
     {
         Execution storage execution = executions[executionId];
         require(execution.status == ExecutionStatus.Reserved, "Execution not reserved");
+        require(executionAdapter != address(0), "Execution adapter not set");
 
+        address asset = execution.asset;
+        uint256 amount = execution.amount;
+        IERC20 token = IERC20(asset);
+        uint256 balanceBefore = token.balanceOf(address(this));
+
+        execution.status = ExecutionStatus.Completed;
+        Balance storage b = balances[execution.user][asset];
+        b.reserved -= amount;
+
+        token.safeTransfer(executionAdapter, amount);
+        (uint256 spent, uint256 returnedAmount, bytes32 createdPositionId) =
+            IQrosExecutionAdapter(executionAdapter).execute(
+                executionId, execution.user, asset, amount, execution.strategyId, adapterData
+            );
+
+        require(spent <= amount && returnedAmount == amount - spent, "Invalid adapter accounting");
+        require(token.balanceOf(address(this)) == balanceBefore - spent, "Adapter token reconciliation failed");
+
+        b.available += returnedAmount;
+        b.deployed += spent;
+        custodyLiability[asset] -= spent;
+        positionId = createdPositionId;
+
+        emit ExecutionCompleted(executionId, executionAdapter, spent);
+        emit ExecutionSettled(executionId, spent, returnedAmount, positionId);
+    }
+
+    /// @dev Legacy adapter handoff retained for backwards compatibility.
+    function completeExecution(bytes32 executionId) external onlyExecutionAdapter nonReentrant {
+        Execution storage execution = executions[executionId];
+        require(execution.status == ExecutionStatus.Reserved, "Execution not reserved");
         execution.status = ExecutionStatus.Completed;
         Balance storage b = balances[execution.user][execution.asset];
         b.reserved -= execution.amount;
         b.deployed += execution.amount;
         custodyLiability[execution.asset] -= execution.amount;
-
         IERC20(execution.asset).safeTransfer(msg.sender, execution.amount);
         emit ExecutionCompleted(executionId, msg.sender, execution.amount);
     }
@@ -353,24 +321,24 @@ contract QrosGatewayLedger is Ownable, Pausable, ReentrancyGuard {
     function releaseExecution(bytes32 executionId) external nonReentrant {
         Execution storage execution = executions[executionId];
         require(execution.status == ExecutionStatus.Reserved, "Execution not reserved");
-        require(
-            msg.sender == execution.user || msg.sender == executionAdapter,
-            "Not authorized to release"
-        );
+        require(msg.sender == execution.user || msg.sender == executionAdapter, "Not authorized to release");
+        _releaseExecution(executionId, execution);
+    }
 
+    function releaseExecutionForRouter(bytes32 executionId) external onlyExecutionRouter nonReentrant {
+        Execution storage execution = executions[executionId];
+        require(execution.status == ExecutionStatus.Reserved, "Execution not reserved");
+        _releaseExecution(executionId, execution);
+    }
+
+    function _releaseExecution(bytes32 executionId, Execution storage execution) internal {
         execution.status = ExecutionStatus.Released;
         Balance storage b = balances[execution.user][execution.asset];
         b.reserved -= execution.amount;
         b.available += execution.amount;
-
         emit ExecutionReleased(executionId, execution.user, execution.amount);
     }
 
-    function pause() external onlyOwner {
-        _pause();
-    }
-
-    function unpause() external onlyOwner {
-        _unpause();
-    }
+    function pause() external onlyOwner { _pause(); }
+    function unpause() external onlyOwner { _unpause(); }
 }
