@@ -217,3 +217,22 @@ Base Sepolia support alone does not make the QMS -> Base route CCTP-compatible.
 Sources:
 - Circle Docs, [Supported blockchains and domains](https://developers.circle.com/cctp/cctp-supported-blockchains).
 - Circle's official [CCTP cross-chain transfer sample](https://github.com/circlefin/circle-cctp-crosschain-transfer), whose published supported testnet list includes Base Sepolia but not QMS.
+
+
+## Phase 1 implementation — Gateway ledger scaffold
+
+Branch `qros-unified-gateway-architecture` now includes:
+
+- `contracts/QrosGatewayLedger.sol`: isolated user/asset balance buckets, deposits, withdrawals, outbound transfer state, adapter-gated inbound credits, execution reservations and adapter-gated execution completion.
+- `contracts/mocks/GatewayTestToken.sol`: six-decimal mock token for local testing only.
+- `test/gateway-ledger.js`: local Ganache tests for deposit accounting, third-party withdrawal rejection, outbound reservation/cancellation/finalization, inbound credit and replay rejection, execution reservation/release/completion, and withdrawal.
+- `npm test` now includes the Gateway ledger test after the existing bridge suites.
+
+Important boundaries and follow-up work:
+
+- This is a ledger primitive, not a deployed Gateway or a CCTP adapter. No live contract address or user funds are affected.
+- The settlement adapter is trusted to call `creditInboundTransfer` only after independently verifying the source message and to transfer the actual destination tokens into the ledger in the same transaction. The ledger's replay map prevents a second credit for the same transfer ID; it does not verify Circle attestations itself.
+- The execution adapter is trusted to call `completeExecution` only after carrying out the exact user-authorized strategy. The next iteration must add signed, parameter-complete execution intents, deadlines, slippage bounds and strategy allowlisting before connecting a real protocol adapter.
+- The current `deployed` bucket records the input amount handed to an execution adapter. It is not a live valuation of an LP NFT, and it does not yet reconcile fees, price movement, partial withdrawals or returned assets. A position registry and explicit close/return accounting are required before production use.
+- Adapter rotation, asset configuration, pause controls and owner key security need governance controls and audit review before real-value use.
+- Run `npm run compile` followed by `npm test` from `qrossbridge/` to validate locally. These tests have been added but have not been executed in this editing session.
