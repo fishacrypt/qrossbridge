@@ -16,7 +16,7 @@ contract QrosQuorumAttestationVerifier is Ownable, IQrosSettlementProofVerifier 
     bytes32 private constant NAME_HASH = keccak256("QROS Quorum Settlement Attestation");
     bytes32 private constant VERSION_HASH = keccak256("1");
     bytes32 private constant DELIVERY_TYPEHASH = keccak256(
-        "Delivery(bytes32 transferId,uint256 sourceChainId,uint256 destinationChainId,address recipient,address destinationAsset,uint256 amount,uint256 deadline)"
+        "Delivery(bytes32 transferId,uint256 sourceChainId,uint256 destinationChainId,address sourceAsset,address recipient,address destinationAsset,uint256 amount,uint256 deadline)"
     );
     bytes32 private constant RECOVERY_TYPEHASH = keccak256(
         "Recovery(bytes32 transferId,uint256 sourceChainId,address sourceAsset,uint256 amount,uint256 deadline)"
@@ -58,19 +58,19 @@ contract QrosQuorumAttestationVerifier is Ownable, IQrosSettlementProofVerifier 
         emit ThresholdUpdated(next);
     }
 
-    function setRoute(uint256 sourceChainId, uint256 destinationChainId, address destinationAsset, bool enabled)
+    function setRoute(uint256 sourceChainId, uint256 destinationChainId, address sourceAsset, address destinationAsset, bool enabled)
         external onlyOwner
     {
         require(sourceChainId != 0 && destinationChainId != 0 && sourceChainId != destinationChainId, "Invalid chains");
-        require(destinationAsset != address(0), "Zero asset");
-        enabledRoute[routeKey(sourceChainId, destinationChainId, destinationAsset)] = enabled;
+        require(sourceAsset != address(0) && destinationAsset != address(0), "Zero asset");
+        enabledRoute[routeKey(sourceChainId, destinationChainId, sourceAsset, destinationAsset)] = enabled;
         emit RouteUpdated(sourceChainId, destinationChainId, destinationAsset, enabled);
     }
 
-    function routeKey(uint256 sourceChainId, uint256 destinationChainId, address destinationAsset)
+    function routeKey(uint256 sourceChainId, uint256 destinationChainId, address sourceAsset, address destinationAsset)
         public pure returns (bytes32)
     {
-        return keccak256(abi.encode(sourceChainId, destinationChainId, destinationAsset));
+        return keccak256(abi.encode(sourceChainId, destinationChainId, sourceAsset, destinationAsset));
     }
 
     function verifyDelivery(bytes32 transferId, bytes calldata proof)
@@ -87,14 +87,14 @@ contract QrosQuorumAttestationVerifier is Ownable, IQrosSettlementProofVerifier 
         if (
             transferId == bytes32(0) || sourceChainId == 0 ||
             destinationChainId != block.chainid || sourceChainId == destinationChainId ||
-            recipient == address(0) || destinationAsset == address(0) || amount == 0 ||
+            sourceAsset == address(0) || recipient == address(0) || destinationAsset == address(0) || amount == 0 ||
             block.timestamp > deadline ||
-            !enabledRoute[routeKey(sourceChainId, destinationChainId, destinationAsset)]
-        ) return (false, sourceChainId, recipient, destinationAsset, amount);
+            !enabledRoute[routeKey(sourceChainId, destinationChainId, sourceAsset, destinationAsset)]
+        ) return (false, sourceChainId, sourceAsset, recipient, destinationAsset, amount);
 
         bytes32 structHash = keccak256(abi.encode(
             DELIVERY_TYPEHASH, transferId, sourceChainId, destinationChainId,
-            recipient, destinationAsset, amount, deadline
+            sourceAsset, recipient, destinationAsset, amount, deadline
         ));
         valid = _hasQuorum(_digest(structHash), signatures);
     }
