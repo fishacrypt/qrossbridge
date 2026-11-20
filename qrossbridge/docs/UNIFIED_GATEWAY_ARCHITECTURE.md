@@ -200,3 +200,20 @@ Never display deployed liquidity as spendable USDC. Never display an aggregate U
 - No promise of fixed returns or guaranteed liquidity.
 - No mainnet or real-value use before compatibility verification, audits and operational controls.
 - No use of the current prefunded demo vault as proof of CCTP or Uniswap integration.
+
+
+## Phase 0 finding — CCTP source compatibility (20 November 2026)
+
+Circle's currently published CCTP supported-blockchains documentation lists Base as a supported domain (domain 6), and Circle's official sample application includes Base Sepolia among its supported testnets. QMS Testnet (chain ID 19480) is not listed in the published CCTP supported-blockchain/domain list or in the sample application's supported testnet list.
+
+Therefore, the proposed QMS Testnet -> Base Sepolia transfer **cannot currently be described or implemented as native Circle CCTP** on the evidence available. The source-side CCTP requirement is an unmet dependency. The QMS USDC token address used by the current QROS deployment must not be assumed to be Circle-native or CCTP-enabled based on its symbol.
+
+Before enabling this route, obtain explicit confirmation from Circle that QMS is supported and that the exact QMS USDC contract is wired to the required CCTP contracts/domain. If that is not available, QROS must either:
+- use a separately specified and transparently labelled bridge/settlement adapter from QMS to Base; or
+- change the source network to a CCTP-supported network.
+
+Base Sepolia support alone does not make the QMS -> Base route CCTP-compatible.
+
+Sources:
+- Circle Docs, [Supported blockchains and domains](https://developers.circle.com/cctp/cctp-supported-blockchains).
+- Circle's official [CCTP cross-chain transfer sample](https://github.com/circlefin/circle-cctp-crosschain-transfer), whose published supported testnet list includes Base Sepolia but not QMS.
