@@ -368,3 +368,16 @@ The dApp selects this handoff path when a configured route includes a verified `
 After source dispatch, the destination settlement adapter must verify canonical bridge evidence, transfer the destination token into its Gateway ledger, and call `creditInboundTransfer` atomically. The destination ledger's replay protection credits the user's available balance. The user then switches to the destination chain, refreshes balances, and separately signs a destination-chain execution intent if they choose to use a strategy. Handoff never triggers automatic execution.
 
 See `docs/CROSS_CHAIN_GATEWAY_HANDOFF.md` for route configuration, adapter obligations, lifecycle states and acceptance invariants. No concrete bridge adapter or destination-chain deployment is included yet. The generic adapter interface does not prove settlement, and QMS-to-Base must not be described as native CCTP without Circle confirmation for QMS and the exact token.
+
+
+## Concrete settlement adapter
+
+The concrete reference settlement path is `QrosAttestedLiquidityAdapter` plus `QrosQuorumAttestationVerifier`. It is a quorum-attested, prefunded destination-liquidity model. It is not a trustless bridge, not a direct integration with the existing QMS native-QMS/wQMS bridge, and not Circle CCTP.
+
+The adapter binds coordinator and ledger transfer intents before source dispatch. For Gateway handoffs it records the original user beneficiary separately from the destination Gateway ledger. Delivery and outbound settlement EIP-712 proofs bind transfer ID, both chain IDs, both token addresses, beneficiary, destination ledger, exact amount and deadline. The destination verifier's route allowlist includes the destination ledger, preventing an otherwise valid attestation from being replayed against another Gateway ledger.
+
+The destination adapter releases only pre-funded destination token inventory after threshold attestation. The source adapter holds source escrow until a matching outbound settlement attestation authorizes release to the configured treasury. Cancellation and post-dispatch recovery are separate paths and require quorum authorization. The verifier is a validator trust model; validators must independently verify source and destination events/finality. It is not a cryptographic light client.
+
+The validator helper is `scripts/settlement-attestation.js`; keep validator keys in an isolated operations environment, never in the dApp or repository. The isolated integration scenarios are in `test/settlement-adapter.js` and are included in `npm test`.
+
+The existing QMS bridge still moves only native QMS/wQMS using a trusted relayer. It does not bridge arbitrary USDC. A dedicated QMS bridge adapter remains separate work; do not configure stablecoin routes against the QMS bridge or label them CCTP.
