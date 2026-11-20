@@ -227,8 +227,132 @@
     }catch(e){status('Unable to read Gateway ledger','error');const m=$g('gatewayMessage');if(m)m.textContent=e?.shortMessage||e?.message||'RPC read failed'}
     finally{busy=false}
   }
+
+  const EXECUTION_ROUTER_ABI=[
+    'function nonces(address user) view returns (uint256)',
+    'function approvedStrategies(bytes32 strategyId) view returns (bool)',
+    'function ledger() view returns (address)',
+    'function execute((address user,address asset,uint256 amount,bytes32 strategyId,bytes32 adapterDataHash,uint256 nonce,uint256 deadline) i,bytes adapterData,bytes signature) returns (bytes32 executionId,bytes32 positionId)'
+  ];
+  const EXECUTION_LEDGER_ABI=[
+    'function executionAdapter() view returns (address)',
+    'function getBalance(address user,address asset) view returns (uint256 available,uint256 inTransit,uint256 reserved,uint256 deployed)'
+  ];
+  let executionPanelReady=false;
+  function executionElement(tag,attrs={},label){
+    const el=document.createElement(tag);
+    for(const [k,v] of Object.entries(attrs))if(k==='text')el.textContent=v;else if(k==='className')el.className=v;else el.setAttribute(k,v);
+    if(label!==undefined)el.textContent=label;
+    return el;
+  }
+  function renderGatewayExecution(){
+    const layout=document.querySelector('#view-gateway .gateway-layout');
+    if(!layout)return;
+    let panel=$g('gatewayExecutionPanel');
+    if(!panel){
+      panel=executionElement('section',{id:'gatewayExecutionPanel',className:'gateway-panel',style:'margin-top:16px'});
+      const title=executionElement('h3',{},'Uniswap V3 liquidity execution');
+      const intro=executionElement('p',{},'Choose an approved strategy and authorize a bounded execution from your available Gateway balance. The Uniswap position NFT is sent directly to your wallet.');
+      const form=executionElement('div',{className:'gateway-form'});
+      const fields=[
+        ['gatewayExecAmount','Amount from Gateway','text','0.00'],
+        ['gatewayExecSwapAmount','Amount to swap','text','0.00'],
+        ['gatewayExecMinSwapOut','Minimum swap output','text','0.00'],
+        ['gatewayExecMin0','Minimum token0 in position','text','0.00'],
+        ['gatewayExecMin1','Minimum token1 in position','text','0.00']
+      ];
+      for(const [id,label,type,placeholder] of fields){
+        form.append(executionElement('label',{for:id},label));
+        const input=executionElement('input',{id,type,inputmode:'decimal',placeholder,autocomplete:'off'});
+        form.append(input);
+      }
+      const summary=executionElement('div',{id:'gatewayExecStrategySummary',className:'gateway-note'});
+      const button=executionElement('button',{id:'gatewayExecSubmit',type:'button',className:'btn solid'},'Review and sign execution');
+      const messageEl=executionElement('p',{id:'gatewayExecMessage',role:'status',style:'font-size:12px'});
+      form.append(summary,button,messageEl);
+      panel.append(title,intro,form);
+      layout.after(panel);
+      button.addEventListener('click',submitGatewayExecution);
+    }
+    const x=cfg().execution;
+    const summary=$g('gatewayExecStrategySummary');
+    if(!x||!x.router||!x.adapter||!x.strategyId||!x.asset||!x.token0||!x.token1){
+      summary.textContent='Execution is not enabled in this deployment. A verified execution router, adapter, strategy ID, token pair, pool configuration and fee approvals are required.';
+      $g('gatewayExecSubmit').disabled=true;
+      return;
+    }
+    summary.textContent=(x.label||'Configured strategy')+' · '+(x.symbol0||'token0')+'/'+(x.symbol1||'token1')+
+      ' · LP fee '+x.poolFee+' · swap fee '+x.swapFee+' · ticks '+x.tickLower+' to '+x.tickUpper+
+      '. Only the configured strategy pair and fee tiers can execute.';
+    $g('gatewayExecSubmit').disabled=false;
+    executionPanelReady=true;
+  }
+  async function submitGatewayExecution(){
+    const button=$g('gatewayExecSubmit'),messageEl=$g('gatewayExecMessage'),x=cfg().execution;
+    if(!x)return;
+    button.disabled=true;messageEl.textContent='Preparing signed execution…';
+    try{
+      const {provider,signer,ledger}=await transactionContext();
+      const user=await signer.getAddress();
+      const routerAddress=x.router,adapterAddress=x.adapter;
+      if(!ethers.isAddress(routerAddress)||!ethers.isAddress(adapterAddress))throw new Error('Execution router or adapter address is invalid.');
+      const [routerCode,adapterCode]=await Promise.all([provider.getCode(routerAddress),provider.getCode(adapterAddress)]);
+      if(routerCode==='0x'||adapterCode==='0x')throw new Error('Configured execution router or adapter has no contract code.');
+      const router=new ethers.Contract(routerAddress,EXECUTION_ROUTER_ABI,signer);
+      const ledgerRead=new ethers.Contract(await ledger.getAddress(),EXECUTION_LEDGER_ABI,provider);
+      const [configuredLedger,configuredAdapter]=await Promise.all([router.ledger(),ledgerRead.executionAdapter()]);
+      if(configuredLedger.toLowerCase()!==(await ledger.getAddress()).toLowerCase())throw new Error('Execution router points to a different Gateway ledger.');
+      if(configuredAdapter.toLowerCase()!==adapterAddress.toLowerCase())throw new Error('Configured Uniswap adapter does not match the ledger execution adapter.');
+      if(!(await router.approvedStrategies(x.strategyId)))throw new Error('This execution strategy is not approved on-chain.');
+      const token0=ethers.getAddress(x.token0),token1=ethers.getAddress(x.token1),asset=ethers.getAddress(x.asset);
+      if(token0.toLowerCase()>=token1.toLowerCase()||![token0.toLowerCase(),token1.toLowerCase()].includes(asset.toLowerCase()))throw new Error('Strategy token pair or input asset is invalid.');
+      const d0=Number(x.decimals0??6),d1=Number(x.decimals1??6),inputDecimals=Number(x.decimals??(asset.toLowerCase()===token0.toLowerCase()?d0:d1));
+      const amount=parseAmount($g('gatewayExecAmount').value,inputDecimals);
+      const swapAmount=parseAmount($g('gatewayExecSwapAmount').value,inputDecimals);
+      const outputDecimals=asset.toLowerCase()===token0.toLowerCase()?d1:d0;
+      const minSwapOut=parseAmount($g('gatewayExecMinSwapOut').value,outputDecimals);
+      const amount0Min=parseAmount($g('gatewayExecMin0').value,d0);
+      const amount1Min=parseAmount($g('gatewayExecMin1').value,d1);
+      if(swapAmount===0n||swapAmount>=amount)throw new Error('Swap amount must be greater than zero and less than the total input.');
+      const balance=await ledger.getBalance(user,asset);
+      if(balance.available<amount)throw new Error('Insufficient available Gateway balance for this execution.');
+      const deadline=BigInt(Math.floor(Date.now()/1000)+600);
+      const params=[
+        token0,token1,Number(x.poolFee),Number(x.swapFee),swapAmount,minSwapOut,
+        Number(x.tickLower),Number(x.tickUpper),amount0Min,amount1Min,deadline
+      ];
+      const adapterData=ethers.AbiCoder.defaultAbiCoder().encode(
+        ['tuple(address token0,address token1,uint24 poolFee,uint24 swapFee,uint256 swapAmount,uint256 minSwapOut,int24 tickLower,int24 tickUpper,uint256 amount0Min,uint256 amount1Min,uint256 deadline)'],
+        [params]
+      );
+      const strategyId=x.strategyId;
+      const nonce=await router.nonces(user);
+      const intent={
+        user,asset,amount,strategyId,adapterDataHash:ethers.keccak256(adapterData),nonce,deadline
+      };
+      const network=await provider.getNetwork();
+      const domain={name:'QROS Execution Router',version:'1',chainId:network.chainId,verifyingContract:routerAddress};
+      const types={ExecutionIntent:[
+        {name:'user',type:'address'},{name:'asset',type:'address'},{name:'amount',type:'uint256'},
+        {name:'strategyId',type:'bytes32'},{name:'adapterDataHash',type:'bytes32'},
+        {name:'nonce',type:'uint256'},{name:'deadline',type:'uint256'}
+      ]};
+      messageEl.textContent='Review the exact strategy parameters and sign the authorization in your wallet.';
+      const signature=await signer.signTypedData(domain,types,intent);
+      messageEl.textContent='Authorization signed. Confirm execution submission in your wallet.';
+      const tx=await router.execute(intent,adapterData,signature);
+      messageEl.textContent='Execution submitted: '+tx.hash;
+      await tx.wait();
+      messageEl.textContent='Execution confirmed. Check your wallet for the Uniswap V3 position NFT and refresh Gateway balances.';
+      for(const id of ['gatewayExecAmount','gatewayExecSwapAmount','gatewayExecMinSwapOut','gatewayExecMin0','gatewayExecMin1'])$g(id).value='';
+      await refresh();
+    }catch(e){
+      messageEl.textContent=e?.shortMessage||e?.reason||e?.message||'Execution was not completed.';
+    }finally{button.disabled=false}
+  }
   window.qrosGatewayRefresh=refresh;
   document.addEventListener('DOMContentLoaded',()=>{
+    renderGatewayExecution();
     const b=$g('gatewayRefresh');if(b)b.addEventListener('click',refresh);
     const d=$g('gatewayDepositButton');if(d)d.addEventListener('click',deposit);
     const w=$g('gatewayWithdrawButton');if(w)w.addEventListener('click',withdraw);
@@ -236,7 +360,7 @@
     const i=$g('gatewayInitiateButton');if(i)i.addEventListener('click',initiateGatewayTransfer);
     const a=$g('gatewayTransferAsset');if(a)a.addEventListener('change',renderTransferOptions);
     const r=$g('gatewayTransferRoute');if(r)r.addEventListener('change',renderTransferOptions);
-    renderAssetSelectors(cfg().assets||[]);renderTransferOptions();
+    renderAssetSelectors(cfg().assets||[]);renderTransferOptions();renderGatewayExecution();
   });
   window.addEventListener('qros:wallet-updated',refresh);
 })();
