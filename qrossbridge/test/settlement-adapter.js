@@ -98,6 +98,13 @@ const units = n => BigInt(n) * 1_000_000n;
     assert.equal(await sourceToken.balanceOf(sourceAdapterAddress), units(10));
 
     const deadline = BigInt(Math.floor(Date.now() / 1000) + 3600);
+    const wrongLedgerProof = await deliveryProof({
+      wallets: [validator], verifier: destinationVerifierAddress, transferId,
+      sourceChainId: sourceId, destinationChainId: destinationId, sourceAsset,
+      recipient: userAddress, destinationAsset, destinationLedger: '0x0000000000000000000000000000000000000001',
+      amount: units(10), deadline
+    });
+    await expectRevert(destinationAdapter.connect(destOwner).proveAndFinalize(transferId, wrongLedgerProof), 'wrong destination Gateway blocked');
     const proof = await deliveryProof({
       wallets: [validator], verifier: destinationVerifierAddress, transferId,
       sourceChainId: sourceId, destinationChainId: destinationId, sourceAsset,
@@ -169,7 +176,7 @@ const units = n => BigInt(n) * 1_000_000n;
     assert.equal(sourceBalance.inTransit, 0n);
     assert.equal(sourceBalance.reserved, 0n);
 
-    console.log('Gateway settlement: wallet delivery, Gateway handoff, replay protection, escrow release, cancellation and recovery passed');
+    console.log('Gateway settlement: Gateway handoff, destination binding, replay protection, escrow release, cancellation and recovery passed');
   } finally {
     await sourceServer.close();
     await destinationServer.close();
