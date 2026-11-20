@@ -52,7 +52,7 @@ The user remains the NFT owner throughout. These functions do not route proceeds
 - The position registry records NFT metadata; it is not a valuation oracle and does not calculate current USD value, fees earned or impermanent loss.
 - The ledger's `deployed` bucket is an informational principal record, not a spendable token balance or redeemable claim.
 - The current execution adapter is configured by the ledger owner. Production needs a multisig/timelock, narrowly scoped roles, emergency controls and independent security review.
-- The transfer coordinator is an orchestration boundary, not a bridge proof verifier. A real settlement adapter must independently verify finality, source message authenticity, destination mint/receipt, replay protection and recovery before finalizing a transfer.
+- The transfer coordinator is an orchestration boundary, not a bridge proof verifier. The Gateway-to-Gateway handoff entry point reserves source funds against a specific destination ledger and token. A real settlement adapter must independently verify finality, source message authenticity, destination mint/receipt, replay protection and recovery before finalizing a transfer. The destination ledger credits the same user address only after destination tokens arrive and the adapter verifies the canonical bridge message.
 - QMS Testnet is not currently established as a Circle CCTP-supported source. Do not configure or describe QMS-to-Base as native CCTP without explicit Circle confirmation for QMS and the exact token contract.
 - Do not deploy or enable these modules for real-value use until the consolidated compile, unit/fuzz/invariant/integration tests, official protocol-address verification and independent audit are complete.
 
@@ -356,3 +356,14 @@ Fee collection does not reduce principal cost basis. Reduce/close amounts includ
 - The UI now exposes explicit minimum token0/token1 output fields for reduce/close actions. Values are entered in raw token units; users should verify token decimals and choose meaningful bounds from a current quote before signing. The UI does not yet fetch or display a live quote.
 - No automatic conversion between token0 and token1 is performed when proceeds return to Gateway. Each token is credited separately, preserving asset-specific accounting.
 - Position actions, ledger crediting, and NFT lifecycle changes have been implemented but have not been compiled or exercised in this stage. They are not a production-readiness claim.
+
+
+## Cross-chain Gateway-to-execution handoff
+
+The coordinator now exposes `requestGatewayHandoff` for an explicit destination-ledger recipient. It records the destination chain, destination token, destination Gateway ledger, user, source asset, amount and approved adapter, and moves the source user's balance from available to inTransit. The user separately authorizes `initiate(transferId)`; only the transfer owner can initiate.
+
+The dApp selects this handoff path when a configured route includes a verified `destinationLedger`. The destination ledger is the recipient; the destination beneficiary is the same EVM wallet address as the source user. Routes without `destinationLedger` retain the existing wallet-recipient transfer path.
+
+After source dispatch, the destination settlement adapter must verify canonical bridge evidence, transfer the destination token into its Gateway ledger, and call `creditInboundTransfer` atomically. The destination ledger's replay protection credits the user's available balance. The user then switches to the destination chain, refreshes balances, and separately signs a destination-chain execution intent if they choose to use a strategy. Handoff never triggers automatic execution.
+
+See `docs/CROSS_CHAIN_GATEWAY_HANDOFF.md` for route configuration, adapter obligations, lifecycle states and acceptance invariants. No concrete bridge adapter or destination-chain deployment is included yet. The generic adapter interface does not prove settlement, and QMS-to-Base must not be described as native CCTP without Circle confirmation for QMS and the exact token.
