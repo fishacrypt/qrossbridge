@@ -109,7 +109,7 @@ abstract contract QrosSettlementAdapterBase is Ownable, ReentrancyGuard, IQrosSe
             "Invalid settlement proof"
         );
         require(recipient != address(0) && amount != 0 && ledger.supportedAssets(asset), "Invalid delivery fields");
-        require(_verifyInboundBridgeProof(transferId, proof, sourceChainId, asset, amount), "Bridge message not finalized");
+        require(_verifyInboundBridgeProof(transferId, proof, sourceChainId, recipient, asset, amount), "Bridge message not finalized");
         inboundProcessed[transferId] = true;
         _releaseInbound(asset, amount);
         ledger.creditInboundTransfer(transferId, recipient, asset, amount, sourceChainId);
@@ -153,7 +153,7 @@ abstract contract QrosSettlementAdapterBase is Ownable, ReentrancyGuard, IQrosSe
 
     /// @dev Protocol adapters must bind the attestation to the protocol's consumed/finalized message.
     function _verifyInboundBridgeProof(
-        bytes32, bytes calldata, uint256, address, uint256
+        bytes32, bytes calldata, uint256, address, address, uint256
     ) internal view virtual returns (bool) {
         return true;
     }
