@@ -5,10 +5,8 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "./QrosSettlementAdapterBase.sol";
 
-/// @notice Quorum-attested, prefunded-liquidity settlement adapter.
-/// @dev This is a concrete reference integration, NOT a trustless bridge:
-///      validators attest source dispatch/delivery while destination liquidity
-///      is released from inventory pre-funded on the destination chain.
+/// @notice Quorum-attested, prefunded-liquidity adapter.
+/// @dev Explicit validator trust model. This is NOT a trustless bridge or CCTP implementation.
 contract QrosAttestedLiquidityAdapter is QrosSettlementAdapterBase {
     using SafeERC20 for IERC20;
 
@@ -17,7 +15,9 @@ contract QrosAttestedLiquidityAdapter is QrosSettlementAdapterBase {
         uint256 amount;
         uint256 destinationChainId;
         address destinationAsset;
-        address recipient;
+        address ledgerRecipient;
+        address beneficiary;
+        address destinationLedger;
     }
 
     mapping(bytes32 => EscrowedTransfer) public escrowed;
@@ -27,7 +27,8 @@ contract QrosAttestedLiquidityAdapter is QrosSettlementAdapterBase {
 
     event OutboundLiquidityLocked(
         bytes32 indexed transferId, address indexed sourceAsset, uint256 amount,
-        uint256 destinationChainId, address destinationAsset, address recipient
+        uint256 destinationChainId, address destinationAsset, address destinationLedger,
+        address beneficiary
     );
     event DestinationLiquidityReleased(bytes32 indexed transferId, address indexed asset, uint256 amount);
     event SourceLiquidityRefunded(bytes32 indexed transferId, address indexed asset, uint256 amount);
@@ -50,16 +51,16 @@ contract QrosAttestedLiquidityAdapter is QrosSettlementAdapterBase {
         emit SettlementTreasuryUpdated(treasury);
     }
 
-    /// @notice Release source escrow only after quorum attests destination completion.
     function settleOutbound(bytes32 transferId, bytes calldata proof) external nonReentrant {
         require(!outboundSettled[transferId], "Already settled");
         EscrowedTransfer memory item = escrowed[transferId];
         require(item.asset != address(0) && item.amount != 0, "Unknown escrow");
-        (bool valid, uint256 destinationChainId, address sourceAsset, uint256 amount) =
-            verifier.verifyOutboundSettlement(transferId, proof);
+        (bool valid, uint256 destinationChainId, address sourceAsset, address destinationAsset,
+         address recipient, uint256 amount) = verifier.verifyOutboundSettlement(transferId, proof);
         require(
             valid && destinationChainId == item.destinationChainId &&
-            sourceAsset == item.asset && amount == item.amount,
+            sourceAsset == item.asset && destinationAsset == item.destinationAsset &&
+            recipient == item.beneficiary && amount == item.amount,
             "Settlement proof mismatch"
         );
         require(settlementTreasury != address(0), "Treasury not configured");
@@ -74,23 +75,27 @@ contract QrosAttestedLiquidityAdapter is QrosSettlementAdapterBase {
     {
         require(sourceAsset != address(0) && destinationAsset != address(0), "Zero asset");
         require(destinationChainId != 0 && destinationChainId != block.chainid, "Invalid destination");
-        bytes32 id = routeId(sourceAsset, destinationChainId, destinationAsset);
-        outboundRouteEnabled[id] = enabled;
-        emit OutboundRouteUpdated(id, enabled);
+        outboundRouteEnabled[routeId(sourceAsset, destinationChainId, destinationAsset)] = enabled;
+        emit OutboundRouteUpdated(routeId(sourceAsset, destinationChainId, destinationAsset), enabled);
     }
 
     function _dispatchOutbound(
         bytes32 transferId, address asset, uint256 amount, uint256 destinationChainId,
-        address destinationAsset, address recipient
+        address destinationAsset, address ledgerRecipient, address beneficiary, address destinationLedger
     ) internal override {
         require(outboundRouteEnabled[routeId(asset, destinationChainId, destinationAsset)], "Route disabled");
         require(escrowed[transferId].asset == address(0), "Transfer already escrowed");
         require(IERC20(asset).balanceOf(address(this)) >= amount, "Source escrow not received");
-        escrowed[transferId] = EscrowedTransfer(asset, amount, destinationChainId, destinationAsset, recipient);
-        emit OutboundLiquidityLocked(transferId, asset, amount, destinationChainId, destinationAsset, recipient);
+        if (destinationLedger != address(0)) require(ledgerRecipient == destinationLedger, "Gateway recipient mismatch");
+        escrowed[transferId] = EscrowedTransfer(
+            asset, amount, destinationChainId, destinationAsset, ledgerRecipient, beneficiary, destinationLedger
+        );
+        emit OutboundLiquidityLocked(
+            transferId, asset, amount, destinationChainId, destinationAsset, destinationLedger, beneficiary
+        );
     }
 
-    /// @dev Releases pre-funded destination inventory after quorum attestation.
+    /// @dev Destination inventory is released only after a verifier-approved delivery attestation.
     function _releaseInbound(address asset, uint256 amount) internal override {
         require(IERC20(asset).balanceOf(address(this)) >= amount, "Destination liquidity unavailable");
         IERC20(asset).safeTransfer(address(ledger), amount);
@@ -102,7 +107,6 @@ contract QrosAttestedLiquidityAdapter is QrosSettlementAdapterBase {
         return verifier.verifyCancellation(transferId, data);
     }
 
-    /// @dev Returns exactly the source asset/amount committed to this transfer.
     function _returnRecoveredAsset(address asset, bytes32 transferId, bytes calldata)
         internal override
     {
@@ -113,7 +117,6 @@ contract QrosAttestedLiquidityAdapter is QrosSettlementAdapterBase {
         emit SourceLiquidityRefunded(transferId, asset, item.amount);
     }
 
-    /// @notice Anyone may top up destination liquidity inventory.
     function fundLiquidity(address asset, uint256 amount) external {
         require(asset != address(0) && amount != 0, "Invalid funding");
         IERC20(asset).safeTransferFrom(msg.sender, address(this), amount);
