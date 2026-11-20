@@ -158,7 +158,7 @@ contract QrosQmsBridgeAdapter is QrosSettlementAdapterBase {
             sourceAdapter == sourceRoute.adapter && destinationToken == asset &&
             sourceToken == expectedSourceToken &&
             expectedDestinationToken == asset && destinationAdapter == address(this) &&
-            beneficiary == recipient && provedAmount == amount && bridgeMessageId != bytes32(0);
+            beneficiary == address(this) && provedAmount == amount && bridgeMessageId != bytes32(0);
     }
 
     function _verifyPreDispatchCancellation(bytes32 transferId, bytes calldata data)
