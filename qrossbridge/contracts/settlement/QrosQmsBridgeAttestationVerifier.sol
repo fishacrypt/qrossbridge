@@ -49,7 +49,7 @@ contract QrosQmsBridgeAttestationVerifier is Ownable, IQrosQmsBridgeProofVerifie
     function routeKey(
         uint256 sourceChainId, uint256 destinationChainId,
         address sourceBridge, address destinationBridge,
-        address sourceToken, address destinationToken, address destinationAdapter
+        address sourceToken, address destinationToken, address sourceAdapter, address destinationAdapter
     ) public pure returns (bytes32) {
         return keccak256(abi.encode(
             sourceChainId, destinationChainId, sourceBridge, destinationBridge,
@@ -103,10 +103,10 @@ contract QrosQmsBridgeAttestationVerifier is Ownable, IQrosQmsBridgeProofVerifie
             destinationToken == address(0) || destinationAdapter == address(0) ||
             beneficiary == address(0) || amount == 0 || bridgeMessageId == bytes32(0) ||
             block.timestamp > deadline ||
-            !enabledRoute[routeKey(sourceChainId, destinationChainId, sourceBridge, destinationBridge, sourceToken, destinationToken, destinationAdapter)]
+            !enabledRoute[routeKey(sourceChainId, destinationChainId, sourceBridge, destinationBridge, sourceToken, destinationToken, sourceAdapter, destinationAdapter)]
         ) return (
             false, sourceChainId, destinationChainId, sourceBridge, destinationBridge,
-            sourceToken, destinationToken, destinationAdapter, beneficiary, amount, bridgeMessageId
+            sourceAdapter, destinationAdapter, sourceToken, destinationToken, beneficiary, amount, bridgeMessageId
         );
 
         bytes32 structHash = keccak256(abi.encode(
