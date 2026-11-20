@@ -22,8 +22,10 @@ contract QrosPositionRegistry is Ownable {
     function registerPosition(bytes32 positionId, address user, address manager, uint256 tokenId, address token0, address token1, uint24 fee, int24 tickLower, int24 tickUpper, uint128 liquidity) external {
         require(approvedAdapters[msg.sender], "Adapter not approved");
         require(positionId != bytes32(0) && positions[positionId].status == Status.None, "Position ID used");
-        require(user != address(0) && manager != address(0) && token0 != address(0) && token1 != address(0), "Invalid position");
+        require(user != address(0) && manager.code.length != 0 && token0 != address(0) && token1 != address(0), "Invalid position");
         require(token0 < token1 && tickLower < tickUpper && liquidity != 0, "Invalid pool position");
+        (bool ownerCall, bytes memory ownerData) = manager.staticcall(abi.encodeWithSignature("ownerOf(uint256)", tokenId));
+        require(ownerCall && ownerData.length >= 32 && abi.decode(ownerData, (address)) == msg.sender, "Adapter does not custody NFT");
         positions[positionId] = Position(user, block.chainid, manager, tokenId, token0, token1, fee, tickLower, tickUpper, liquidity, Status.Active, uint64(block.timestamp));
         userPositions[user].push(positionId); emit PositionRegistered(positionId, user, manager, tokenId);
     }
