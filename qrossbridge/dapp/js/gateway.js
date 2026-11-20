@@ -86,9 +86,12 @@
   }
   const COORDINATOR_ABI=[
     'function requestTransfer(bytes32 transferId,address asset,uint256 amount,uint256 destinationChainId,address destinationAsset,address recipient,address adapter)',
+    'function requestGatewayHandoff(bytes32 transferId,address asset,uint256 amount,uint256 destinationChainId,address destinationAsset,address destinationLedger,address adapter)',
+    'function getTransfer(bytes32 transferId) view returns ((address user,address asset,uint256 amount,uint256 destinationChainId,address destinationAsset,address recipient,address adapter,bool initiated,bool gatewayHandoff))',
     'function initiate(bytes32 transferId)',
     'event TransferRequested(bytes32 indexed transferId,address indexed user,address indexed asset,uint256 amount,uint256 destinationChainId,address adapter)',
     'event TransferInitiated(bytes32 indexed transferId,address indexed adapter)',
+    'event GatewayHandoffRequested(bytes32 indexed transferId,address indexed user,uint256 indexed destinationChainId,address destinationLedger,address destinationAsset,uint256 amount)',
     'event OutboundTransferFinalized(bytes32 indexed transferId,address indexed adapter,uint256 amount)',
     'event OutboundTransferCancelled(bytes32 indexed transferId,address indexed user,uint256 amount)',
     'event OutboundTransferRecovered(bytes32 indexed transferId,address indexed user,uint256 amount)',
