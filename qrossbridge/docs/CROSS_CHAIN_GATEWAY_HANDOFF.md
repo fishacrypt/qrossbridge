@@ -1,6 +1,6 @@
 # QROS cross-chain Gateway-to-execution handoff
 
-Status: contract and dApp handoff interface implemented; chain-specific settlement adapter and destination deployments remain integration requirements.
+Status: quorum-attested prefunded-liquidity adapter implemented as a concrete reference settlement path. It is not a trustless bridge, a direct QMS Bridge integration, or a CCTP implementation. Destination deployments, validator operations and route funding remain integration requirements.
 
 ## Intended user journey
 
@@ -40,19 +40,21 @@ The destination chain must independently deploy/configure:
 
 ## Required settlement adapter contract
 
-The generic `IQrosSettlementAdapter` boundary is deliberately not a bridge implementation. A production adapter must:
+The concrete `QrosAttestedLiquidityAdapter` implements the current reference settlement path. It escrows the exact source token on the source chain, releases pre-funded destination inventory only after a threshold EIP-712 validator attestation, and releases source escrow to the configured treasury only after a matching outbound-settlement attestation. It supports Gateway handoff by binding both the destination ledger and the original user beneficiary in its escrow record and proof. It is a prefunded-liquidity settlement service, not a token-lock-and-mint light client.
+
+The generic `IQrosSettlementAdapter` boundary remains the extension point for a native bridge/CCTP adapter. Any production adapter must:
 - be approved by the source `QrosTransferCoordinator`;
 - be the source ledger's configured `settlementAdapter` before it can finalize source custody;
 - read the coordinator's `getTransfer(transferId)` record and reject mismatched chain/token/recipient fields;
 - dispatch exactly the reserved amount and record the underlying bridge message identifier;
 - never finalize the source transfer before the bridge has accepted the source tokens;
-- verify destination message authenticity and finality using the bridge's canonical verifier, not a relayer-supplied boolean;
-- verify the destination ledger, token, amount, source chain and beneficiary against the original intent;
+- verify destination message authenticity and finality using the selected protocol's canonical verifier, or an explicitly disclosed validator quorum where no on-chain proof system exists;
+- verify the destination ledger, token, amount, source chain and beneficiary against the original intent; the current EIP-712 delivery and outbound-settlement attestations bind all of these fields, including the destination ledger;
 - transfer destination tokens into the destination ledger and call `creditInboundTransfer` atomically;
 - use a globally unique transfer identifier and bridge-native replay protection;
 - support only bridge-authenticated terminal recovery. Cancellation is allowed only before irreversible source dispatch; post-dispatch recovery must return the exact source asset before calling `recoverFinalizedOutboundTransfer`.
 
-The current coordinator `initiate` call is orchestration only. It does not prove settlement. The ledger's `creditInboundTransfer` is an adapter-gated accounting primitive, not a proof verifier. Do not deploy a permissive adapter that accepts arbitrary proof bytes or trusts the relayer.
+The current coordinator `initiate` call is orchestration only. It does not prove settlement. The ledger's `creditInboundTransfer` is an adapter-gated accounting primitive, not a proof verifier. The current quorum verifier authenticates EIP-712 signatures from configured validators; validators must independently inspect source and destination chain state, bridge message IDs, finality and token receipts. A quorum signature is a trust assumption, not cryptographic proof of chain consensus. Do not deploy a permissive adapter that accepts arbitrary proof bytes or trusts a single relayer.
 
 ## User-visible lifecycle
 
@@ -83,3 +85,30 @@ This handoff abstraction is bridge-neutral. It does not imply that QMS Testnet i
 - a failed destination proof leaves the transfer pending/recoverable, never falsely credited.
 
 No chain-specific adapter, destination deployment, compilation, test or live transaction is claimed by this document.
+
+
+## Concrete reference adapter and validator operations
+
+The implemented reference contracts are:
+- `contracts/adapters/QrosSettlementAdapterBase.sol`: coordinator intent binding, source ledger finalization, proof-gated destination credit and cancellation/recovery state transitions.
+- `contracts/adapters/QrosAttestedLiquidityAdapter.sol`: source escrow, route allowlisting, prefunded destination inventory, destination delivery and source treasury settlement.
+- `contracts/settlement/QrosQuorumAttestationVerifier.sol`: threshold EIP-712 signatures with signer ordering, expiry, chain/verifier domain separation and route allowlisting.
+- `scripts/settlement-attestation.js`: off-chain EIP-712 proof encoding helpers. Validator private keys must remain in a secured validator environment and must never be placed in the dApp.
+- `test/settlement-adapter.js`: isolated two-chain Ganache scenarios for Gateway handoff, beneficiary credit, destination replay rejection, source escrow release, pre-dispatch cancellation and post-dispatch recovery.
+
+Delivery and outbound-settlement signatures bind the transfer ID, source and destination chain IDs, source and destination token addresses, original beneficiary, destination Gateway ledger, exact amount and deadline. A proof for another destination ledger or beneficiary must not verify. The verifier route key includes the destination ledger.
+
+The current adapter's economic model is prefunded liquidity: destination inventory must be funded before delivery. Source escrow is held until validators attest destination completion, then released to a configured treasury. This is not the same as burning/minting through the existing QMS bridge. The existing QMS bridge moves native QMS/wQMS and uses a trusted relayer; it does not natively transport arbitrary USDC assets. A separate QMS bridge adapter must be written and reviewed before connecting these Gateway balances to that bridge.
+
+### Deployment/configuration order (per chain)
+
+1. Deploy the Gateway ledger and enable the exact token.
+2. Deploy the chain's quorum verifier, configure the validator set and a threshold lower than or equal to the signer count.
+3. Deploy the settlement adapter with that ledger, verifier and coordinator addresses.
+4. Set the ledger's settlement adapter and transfer coordinator; approve the adapter in the coordinator.
+5. On the source adapter, enable the exact source-token/destination-chain/destination-token route and configure the settlement treasury.
+6. On both source and destination verifiers, enable the matching route including the destination ledger address.
+7. Fund the destination adapter with the exact destination token inventory before accepting transfers.
+8. Configure the dApp route with the source asset, destination chain, destination asset, destination ledger and approved source adapter.
+
+Do not enable a route until independent validators, key custody, quorum rotation, liquidity monitoring, treasury controls, emergency pause and proof/recovery runbooks are operational. The code is a reference implementation and has not been security-audited.
