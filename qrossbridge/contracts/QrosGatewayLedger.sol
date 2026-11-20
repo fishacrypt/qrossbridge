@@ -253,7 +253,7 @@ contract QrosGatewayLedger is Ownable, Pausable, ReentrancyGuard {
     /// @notice Recover funds returned by a settlement adapter after source finalization.
     /// @dev The adapter must return the exact source asset to this ledger before calling.
     ///      This is distinct from cancellation, which is only valid before finalization.
-    function recoverFinalizedOutboundTransfer(bytes32 transferId) external onlySettlementAdapter nonReentrant {
+    function recoverFinalizedOutboundTransfer(bytes32 transferId) external onlySettlementAdapterForTransfer(transferId) nonReentrant {
         OutboundTransfer storage transfer = outboundTransfers[transferId];
         require(transfer.status == TransferStatus.Finalized, "Transfer not finalized");
         require(
