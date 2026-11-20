@@ -179,3 +179,51 @@ The Gateway transfer activity panel now distinguishes requested, initiated, sour
 ### Validation status
 
 These are implementation commits only. No compile, integration, security or deployment validation has been performed in this implementation pass. The complete consolidated validation remains scheduled after the remaining Gateway modules are built.
+
+
+## Concrete settlement integration — quorum-attested prefunded liquidity
+
+This implementation adds a concrete **quorum-attested prefunded-liquidity adapter**. It is a real token-custody and accounting path, but it is not a trustless bridge and does not automatically integrate Circle CCTP or the legacy native-QMS bridge.
+
+### Components
+
+- `contracts/settlement/QrosQuorumAttestationVerifier.sol`: EIP-712 threshold signer verifier for delivery, cancellation, recovery and source-escrow release attestations.
+- `contracts/adapters/QrosAttestedLiquidityAdapter.sol`: source escrow, destination inventory release, source refund and source escrow release.
+- `scripts/settlement-attestation.js`: ethers v6 helpers for generating ABI-encoded validator proof payloads. This belongs in a trusted validator/operations environment only; never bundle it into browser code or expose validator private keys.
+- `interfaces/IQrosSettlementProofVerifier.sol`: exact typed return fields for delivery and recovery proofs.
+
+### Operational flow
+
+1. Deploy a verifier and adapter on each participating chain. Configure the matching Gateway ledger's `settlementAdapter` to that chain's adapter. Configure the source coordinator to approve its source adapter; the adapter's coordinator address must match.
+2. Configure the source adapter route with source asset, destination chain ID and destination asset. Configure the destination verifier's route for source chain, destination chain and destination asset.
+3. Prefund the destination adapter with the destination token inventory using `fundLiquidity`. Configure the source adapter's `settlementTreasury` to the liquidity provider/treasury that receives source assets after destination delivery.
+4. The user requests and separately initiates the Gateway transfer. The source ledger transfers the exact source token amount into adapter escrow and emits `OutboundLiquidityLocked`. The transfer ID and all route details are retained in the event and escrow record.
+5. Validators independently reconcile the source event and the destination payout process. They sign a destination `Delivery` attestation. Anyone can submit it to the destination adapter's `proveAndFinalize`; the destination adapter releases prefunded destination inventory to its ledger, which credits the recipient once.
+6. Validators independently verify the destination ledger credit and sign an `OutboundSettled` attestation. Anyone can submit it to the source adapter's `settleOutbound`; only then is the source escrow released to the configured settlement treasury.
+7. If the destination payout cannot be completed, validators may sign a `Recovery` attestation. The source adapter returns the exact escrowed source token to the source ledger, and the ledger restores the user's available balance. A pre-dispatch `Cancellation` proof is a separate path and only applies while the ledger still records the transfer as in transit.
+
+### Attestation format
+
+The helper exports:
+- `deliveryProof`: source chain, destination chain, recipient, destination asset, amount, deadline and sorted signatures.
+- `outboundSettlementProof`: source chain, destination chain, source asset, amount, deadline and sorted signatures.
+- `recoveryProof`: source chain, source asset, exact amount, deadline and sorted signatures.
+- `cancellationProof`: source chain and deadline.
+
+All signatures use EIP-712 domain name `QROS Quorum Settlement Attestation`, version `1`, the chain ID where the verifier is deployed, and that verifier's address. The contract rejects duplicate or unsorted signer addresses. Signers must independently verify the underlying source/destination events; the contract cannot make dishonest validators honest.
+
+For verifier setup, deploy initially with threshold `1`, add the validator signer addresses, then set the intended threshold (for example, 2-of-3). The verifier owner can change signers, threshold and routes; these powers require multisig custody, timelocks and monitoring before production.
+
+### Important trust and liquidity model
+
+This adapter is explicitly **quorum-trusted**. Validators attest that a source transfer is eligible for a destination payout and that the destination credit actually occurred. It is not a light client, fraud proof, zk proof, or Circle attestation verifier. A compromised threshold can authorize an invalid payout or refund. Validator independence, key security, monitoring and economic/liquidity controls are essential.
+
+Destination payout uses prefunded inventory. The source token remains escrowed until a separate quorum attestation confirms destination credit, after which it is transferred to the settlement treasury/liquidity provider. This is a liquidity-provider model; it is not a native token burn-and-mint bridge. Fees, exchange rates, decimals, inventory rebalancing and liquidity-provider economics must be explicitly configured before enabling any route. The current adapter transfers the exact same integer amount across source/destination units, so it is suitable only for routes whose token units are intentionally 1:1 and decimal-compatible. Do not enable mismatched-decimal or FX routes with this implementation.
+
+### Legacy bridge compatibility
+
+The existing QMS hub-and-spoke bridge transfers native QMS and mints/burns wQMS. The Gateway ledger currently accounts for ERC-20 assets. The legacy bridge events also do not carry the Gateway transfer ID in a way this adapter can verify end-to-end. Therefore this adapter does **not** silently claim to be integrated with the legacy QMS bridge. A dedicated bridge-specific adapter and Gateway-aware hub/spoke entrypoints are still required if that is the chosen settlement route.
+
+### Safety boundary
+
+No route should be enabled until both chain deployments, token addresses/decimals, verifier signer set, liquidity inventory, treasury, ledger adapter and coordinator approval have been independently verified. No private key belongs in the frontend. This implementation is a testnet reference for an explicitly trusted validator model, not audited production infrastructure.
