@@ -204,6 +204,7 @@ async function main() {
     for (const id of [HUB_ID, BASE_ID]) {
       const c = contexts.get(id);
       state.chains[String(id)].adapter = {
+        ...(state.chains[String(id)].adapter || {}),
         address: c.adapterAddress,
         owner: c.owner,
         chainId: id
