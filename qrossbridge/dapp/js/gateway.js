@@ -30,7 +30,7 @@
   function setBusy(v){for(const id of ['gatewayDepositButton','gatewayWithdrawButton']){const b=$g(id);if(b)b.disabled=v}}
   function message(text,error=false){const m=$g('gatewayMessage');if(m){m.textContent=text;m.classList.toggle('gateway-error',error)}}
   function parseAmount(value,decimals){
-    if(!/^\\d+(\\.\\d+)?$/.test(String(value||'')))throw new Error('Enter a valid positive amount.');
+    if(!/^\d+(\.\d+)?$/.test(String(value||'')))throw new Error('Enter a valid positive amount.');
     const [whole,fraction='']=String(value).split('.');
     if(fraction.length>decimals)throw new Error('This token supports up to '+decimals+' decimal places.');
     const amount=ethers.parseUnits(value,decimals);if(amount<=0n)throw new Error('Amount must be greater than zero.');
