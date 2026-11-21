@@ -173,7 +173,49 @@ async function main() {
       });
     }
 
-    // Read back constructor bindings before declaring this chain complete.
+    // Safe baseline on the NEW ledger only. No validator or proof route is enabled here.
+    const ledgerWrite = new ethers.Contract(ledger.address, artifact('QrosGatewayLedger').abi, wallet);
+    const coordinatorWrite = new ethers.Contract(coordinator.address, artifact('QrosTransferCoordinator').abi, wallet);
+    const executionRouterWrite = executionRouter
+      ? new ethers.Contract(executionRouter.address, artifact('QrosExecutionRouter').abi, wallet)
+      : null;
+    async function send(label, txPromise) {
+      const tx = await txPromise;
+      const receipt = await tx.wait();
+      if (!receipt || receipt.status !== 1) throw new Error(label + ' transaction failed.');
+      console.log('  ✓ ' + label + ' [' + receipt.hash + ']');
+    }
+    async function ensureAddress(label, read, write, expected) {
+      const current = await read();
+      if (same(current, expected)) return;
+      if (!same(current, ethers.ZeroAddress)) throw new Error(label + ' already points to a different address: ' + current);
+      await send(label, write());
+      if (!same(await read(), expected)) throw new Error(label + ' did not persist.');
+    }
+    async function ensureBool(label, read, write) {
+      if (await read()) return;
+      await send(label, write());
+      if (!(await read())) throw new Error(label + ' did not persist.');
+    }
+    await ensureAddress(cfg.label + ' connect replacement transfer coordinator',
+      () => ledgerWrite.transferCoordinator(),
+      () => ledgerWrite.setTransferCoordinator(coordinator.address), coordinator.address);
+    await ensureBool(cfg.label + ' enable replacement wQMS custody',
+      () => ledgerWrite.supportedAssets(localToken),
+      () => ledgerWrite.setAssetSupport(localToken, true));
+    await ensureAddress(cfg.label + ' assign wQMS settlement adapter',
+      () => ledgerWrite.settlementAdapters(localToken),
+      () => ledgerWrite.setSettlementAdapterForAsset(localToken, adapter.address), adapter.address);
+    await ensureBool(cfg.label + ' approve QMS adapter in replacement coordinator',
+      () => coordinatorWrite.approvedAdapters(adapter.address),
+      () => coordinatorWrite.setAdapter(adapter.address, true));
+    if (executionRouterWrite) {
+      await ensureAddress('Base Sepolia connect replacement execution router',
+        () => ledgerWrite.executionRouter(),
+        () => ledgerWrite.setExecutionRouter(executionRouter.address), executionRouter.address);
+    }
+
+    // Read back constructor bindings and safe baseline before declaring this chain complete.
     const ledgerRead = new ethers.Contract(ledger.address, artifact('QrosGatewayLedger').abi, provider);
     const coordinatorRead = new ethers.Contract(coordinator.address, artifact('QrosTransferCoordinator').abi, provider);
     const adapterRead = new ethers.Contract(adapter.address, artifact('QrosQmsBridgeAdapter').abi, provider);
@@ -201,15 +243,57 @@ async function main() {
       previousGatewayLedger: core.chains[idKey].contracts.gatewayLedger.address,
       previousTransferCoordinator: core.chains[idKey].contracts.transferCoordinator.address
     };
+    state.chains[idKey].safeBaseline = {
+      transferCoordinatorConnected: true,
+      wqmsCustodyEnabled: true,
+      assetSettlementAdapterAssigned: true,
+      coordinatorAdapterApproved: true,
+      executionRouterConnected: Boolean(executionRouter)
+    };
     state.chains[idKey].deploymentVerifiedAt = new Date().toISOString();
     writeJson(OUTPUT_FILE, state);
     await provider.destroy();
   }
 
-  state.status = 'replacement-contracts-deployed-unconfigured';
+  const preparation = {
+    schemaVersion: 1,
+    project: 'QROS Gateway migration adapter preparation',
+    status: 'prepared-awaiting-validator-quorum',
+    chains: {},
+    activation: {
+      settlementAdaptersWired: true,
+      coordinatorAdaptersApproved: true,
+      spokeGatewayAdaptersAuthorized: false,
+      verifierSignersConfigured: false,
+      proofRoutesEnabled: false
+    },
+    notes: [
+      'Replacement ledgers only. Existing Gateway contracts and balances remain untouched.',
+      'wQMS settlement adapters are assigned and coordinator-approved, but validator signers and proof routes remain disabled.',
+      'Cross-chain transfers are not ready until the separate activation workflow completes.'
+    ],
+    createdAt: state.createdAt,
+    preparedAt: new Date().toISOString()
+  };
+  for (const id of [HUB_ID, 84532]) {
+    const c = state.chains[String(id)];
+    preparation.chains[String(id)] = {
+      name: c.name, role: c.role, owner: c.owner,
+      bridgeOwner: c.legacy.bridgeOwner, bridge: c.legacy.bridge, token: c.legacy.token,
+      gatewayLedger: c.contracts.gatewayLedger.address,
+      transferCoordinator: c.contracts.transferCoordinator.address,
+      settlementVerifier: c.contracts.settlementVerifier.address,
+      bridgeVerifier: c.contracts.bridgeVerifier,
+      qmsBridgeAdapter: c.contracts.qmsBridgeAdapter,
+      safeBaseline: c.safeBaseline,
+      preparedAt: c.deploymentVerifiedAt
+    };
+  }
+  writeJson(path.join(ROOT, 'gateway-migration-adapter-preparations.json'), preparation);
+  state.status = 'replacement-contracts-prepared-awaiting-validator-quorum';
   state.completedAt = new Date().toISOString();
   writeJson(OUTPUT_FILE, state);
-  console.log('\nReplacement deployment complete.');
+  console.log('\nReplacement deployment and safe baseline complete.');
   console.log('Migration manifest: gateway-migration-deployments.json');
   console.log('Existing gateway-core-deployments.json was not modified.');
   console.log('No existing balances were moved. No replacement adapter or route was activated.');
