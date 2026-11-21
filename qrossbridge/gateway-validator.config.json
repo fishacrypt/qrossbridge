@@ -1,0 +1,9 @@
+{
+  "threshold": 2,
+  "validators": [
+    "0xeae9a255d6acb4994f335ae3b92ecc421f03ad0d",
+    "0x2db5f27bcc66f5627b53487be544f02a94b5fd54",
+    "0x28a3d0cd55f95f7153577cc53303e0fa9d5cd718"
+  ],
+  "trustModel": "Testnet bootstrap: all three validator addresses are controlled by the project owner; this is not an independent 2-of-3 validator network."
+}

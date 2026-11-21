@@ -16,6 +16,7 @@ const input = {
   sources,
   settings: {
     optimizer: { enabled: true, runs: 200 },
+    viaIR: true, // Gateway ledger uses complex accounting paths; required to avoid stack-too-deep.
     evmVersion: 'paris', // no PUSH0: safest for chains whose EVM version we don't control
     outputSelection: { '*': { '*': ['abi', 'evm.bytecode.object'] } }
   }

@@ -12,6 +12,7 @@
 <script>document.documentElement.setAttribute("data-theme","light")</script>
 <link rel="stylesheet" href="/dapp/css/app.css">
 <link rel="stylesheet" href="/dapp/css/stablecoin-exec.css">
+<link rel="stylesheet" href="/dapp/css/gateway.css">
 </head>
 <body>
 <header class="hdr">
@@ -28,6 +29,7 @@
       <a href="#/" data-route="home">Overview</a>
       <a href="#/bridge" data-route="bridge">Transfer</a>
       <a href="#/execution" data-route="execution">Execution</a>
+      <a href="#/gateway" data-route="gateway">Gateway</a>
       <a href="#/activity" data-route="activity">Activity</a>
       <a href="#/networks" data-route="networks">Networks</a>
       <a href="#/docs" data-route="docs">Docs</a>
@@ -127,6 +129,56 @@
     </div>
   </section>
 
+  <!-- UNIFIED GATEWAY -->
+  <section class="view" id="view-gateway" data-view="gateway" hidden>
+    <div class="gateway-head">
+      <div><div class="section-kicker">QROS UNIFIED ACCOUNT</div><h1>Gateway</h1><p>Your balances stay available until you choose to transfer or authorize an execution strategy. Deposits do not automatically enter DeFi positions.</p></div>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><span class="gateway-status" id="gatewayStatus">Connect wallet to view balances</span><button class="btn sm" id="gatewayRefresh" type="button">Refresh balances</button></div>
+    </div>
+    <div class="gateway-grid">
+      <div class="gateway-metric"><small>AVAILABLE</small><strong data-gateway-metric="available">—</strong><span>Ready for your next instruction</span></div>
+      <div class="gateway-metric"><small>IN TRANSIT</small><strong data-gateway-metric="inTransit">—</strong><span>Transfers awaiting settlement</span></div>
+      <div class="gateway-metric"><small>RESERVED</small><strong data-gateway-metric="reserved">—</strong><span>Authorized, not yet deployed</span></div>
+      <div class="gateway-metric"><small>DEPLOYED</small><strong data-gateway-metric="deployed">—</strong><span>Principal assigned to strategies</span></div>
+    </div>
+    <div class="gateway-layout">
+      <section class="gateway-panel"><h3>Asset balances</h3><p>Balances are read directly from the configured QROS Gateway ledger.</p>
+        <div class="gateway-asset gateway-asset-head"><b>ASSET</b><span>AVAILABLE</span><span>IN TRANSIT</span><span>RESERVED</span><span>DEPLOYED</span></div>
+        <div id="gatewayAssets"><div class="gateway-empty">Connect your wallet and configure a verified Gateway deployment to view balances.</div></div>
+        <div class="gateway-note">The four balance buckets are tracked separately. Assets with different token contracts are never combined into a single token balance.</div>
+      </section>
+      <aside class="gateway-panel"><h3>Account</h3><p>Connected wallet</p><p class="mono" id="gatewayOwner" style="margin-top:10px;overflow-wrap:anywhere">Wallet not connected</p>
+        <div class="gateway-note">Deposits increase your available balance. Withdrawals only use available funds. Neither action automatically starts a bridge transfer or DeFi strategy.</div>
+        <div class="gateway-form">
+          <h3>Deposit</h3>
+          <label for="gatewayDepositAsset">Asset</label><select id="gatewayDepositAsset"></select>
+          <label for="gatewayDepositAmount">Amount</label><input id="gatewayDepositAmount" inputmode="decimal" placeholder="0.00" autocomplete="off">
+          <button class="btn solid" id="gatewayDepositButton" type="button">Deposit to Gateway</button>
+          <h3>Withdraw</h3>
+          <label for="gatewayWithdrawAsset">Asset</label><select id="gatewayWithdrawAsset"></select>
+          <label for="gatewayWithdrawAmount">Amount</label><input id="gatewayWithdrawAmount" inputmode="decimal" placeholder="0.00" autocomplete="off">
+          <label for="gatewayWithdrawRecipient">Recipient address</label><input id="gatewayWithdrawRecipient" placeholder="Your connected wallet" autocomplete="off">
+          <button class="btn" id="gatewayWithdrawButton" type="button">Withdraw available balance</button>
+        </div>
+        <div class="gateway-form">
+          <h3>Move balance across networks</h3>
+          <p>Only routes explicitly configured by QROS are selectable. Your source balance moves from available to in transit when you request the transfer.</p>
+          <label for="gatewayTransferAsset">Source asset</label><select id="gatewayTransferAsset"></select>
+          <label for="gatewayTransferRoute">Destination network</label><select id="gatewayTransferRoute"></select>
+          <label for="gatewayTransferDestinationAsset">Destination asset</label><select id="gatewayTransferDestinationAsset"></select>
+          <label for="gatewayTransferAmount">Amount</label><input id="gatewayTransferAmount" inputmode="decimal" placeholder="0.00" autocomplete="off">
+          <label for="gatewayTransferRecipient">Destination wallet address</label><input id="gatewayTransferRecipient" placeholder="0x..." autocomplete="off" spellcheck="false">
+          <button class="btn solid" id="gatewayTransferButton" type="button">Review and request transfer</button>
+          <button class="btn" id="gatewayInitiateButton" type="button" hidden>Retry settlement initiation</button>
+          <p id="gatewayTransferMessage" role="status" style="font-size:12px"></p>
+        </div>
+        <div class="gateway-panel" style="margin-top:14px;padding:14px"><h3>Gateway transfer activity</h3><div id="gatewayTransferHistory" class="gateway-empty">No Gateway transfers recorded in this browser yet.</div></div>
+        <div class="gateway-actions"><a href="#/bridge">Open legacy bridge</a><a href="#/execution">Explore execution</a></div>
+        <p id="gatewayMessage" class="gateway-error" style="font-size:12px;margin-top:12px" role="status"></p>
+      </aside>
+    </div>
+  </section>
+
   <!-- ACTIVITY -->
   <section class="view" id="view-activity" data-view="activity" hidden>
     <div class="page-h"><h1>Activity</h1></div>
@@ -192,6 +244,8 @@ const BRIDGE = {
 <script src="/dapp/js/pages.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/ethers@6.13.5/dist/ethers.umd.min.js"></script>
 <script src="/dapp/js/stablecoin-exec.js"></script>
+<script src="/dapp/js/gateway-config.js"></script>
+<script src="/dapp/js/gateway.js"></script>
 <script src="/dapp/js/app.js"></script>
 </body>
 </html>

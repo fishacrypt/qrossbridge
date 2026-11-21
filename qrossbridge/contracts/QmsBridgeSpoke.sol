@@ -9,12 +9,33 @@ import {WrappedQMS} from "./WrappedQMS.sol";
 contract QmsBridgeSpoke is BridgeBase {
     WrappedQMS public immutable token;
     uint256 public immutable hubChainId;
+    mapping(address => bool) public gatewayAdapters;
+    event GatewayAdapterUpdated(address indexed adapter, bool enabled);
 
     error WrongSource();
 
     constructor(uint256 hubChainId_, address owner_, address relayer_) BridgeBase(owner_, relayer_) {
         hubChainId = hubChainId_;
         token = new WrappedQMS(address(this));
+    }
+
+    function setGatewayAdapter(address adapter, bool enabled) external onlyOwner {
+        require(adapter != address(0), "Zero adapter");
+        gatewayAdapters[adapter] = enabled;
+        emit GatewayAdapterUpdated(adapter, enabled);
+    }
+
+    /// @notice Gateway adapter burns its escrowed wQMS and emits the standard bridge event.
+    function bridgeBackFor(address holder, uint256 amount, address recipient, bool asNative)
+        external whenNotPaused nonReentrant
+    {
+        require(gatewayAdapters[msg.sender], "Not Gateway adapter");
+        require(holder == msg.sender, "Adapter must hold tokens");
+        if (recipient == address(0)) revert ZeroAddress();
+        _checkAmount(amount);
+        token.bridgeBurn(holder, amount);
+        (uint256 n, bytes32 id) = _newTransfer();
+        emit Bridged(id, hubChainId, holder, recipient, amount, n, asNative);
     }
 
     /// @notice Burn wQMS here; receive native QMS (asNative) or WQMS on the QMS chain.

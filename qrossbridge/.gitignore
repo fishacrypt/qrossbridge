@@ -11,3 +11,26 @@ relayer-state.json
 
 execution-relayer-state.json
 
+# Local Gateway deployment configuration and resumable state
+gateway-core-deploy.config.json
+.gateway-core-deployments.pending.json
+.gateway-core-deployments.pending.json.tmp
+
+# Local secrets
+.env
+
+# Generated compiler artifacts
+build/
+
+# Local Gateway deployment and test state
+gateway-core-deployments.json
+gateway-migration-activations.json
+gateway-migration-adapter-preparations.json
+gateway-migration-deployments.json
+gateway-stablecoin-deployments.json
+qms-gateway.config.json
+qms-test-usdt-deployment.json
+qms-to-base-transfer-*.json
+scripts/execute-qms-to-base-test.mjs
+
+gateway-adapter-preparations.json

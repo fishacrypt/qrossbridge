@@ -1,0 +1,163 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.26;
+
+import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import "../interfaces/IQrosSettlementProofVerifier.sol";
+
+/// @notice Threshold EIP-712 attestations. Validators must independently reconcile both chains.
+/// @dev Trusted-validator model; signatures are not a light-client proof of bridge finality.
+contract QrosQuorumAttestationVerifier is Ownable, IQrosSettlementProofVerifier {
+    using ECDSA for bytes32;
+
+    bytes32 private constant DOMAIN_TYPEHASH = keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)");
+    bytes32 private constant NAME_HASH = keccak256("QROS Quorum Settlement Attestation");
+    bytes32 private constant VERSION_HASH = keccak256("1");
+    bytes32 private constant DELIVERY_TYPEHASH = keccak256(
+        "Delivery(bytes32 transferId,uint256 sourceChainId,uint256 destinationChainId,address sourceAsset,address recipient,address destinationAsset,address destinationLedger,uint256 amount,uint256 deadline)"
+    );
+    bytes32 private constant RECOVERY_TYPEHASH = keccak256(
+        "Recovery(bytes32 transferId,uint256 sourceChainId,address sourceAsset,uint256 amount,uint256 deadline)"
+    );
+    bytes32 private constant CANCEL_TYPEHASH = keccak256(
+        "Cancellation(bytes32 transferId,uint256 sourceChainId,uint256 deadline)"
+    );
+    bytes32 private constant OUTBOUND_SETTLED_TYPEHASH = keccak256(
+        "OutboundSettled(bytes32 transferId,uint256 sourceChainId,uint256 destinationChainId,address sourceAsset,address destinationAsset,address recipient,address destinationLedger,uint256 amount,uint256 deadline)"
+    );
+
+    mapping(address => bool) public isSigner;
+    mapping(bytes32 => bool) public enabledRoute;
+    uint256 public signerCount;
+    uint256 public threshold;
+
+    event SignerUpdated(address indexed signer, bool enabled);
+    event ThresholdUpdated(uint256 threshold);
+    event RouteUpdated(uint256 indexed sourceChainId, uint256 indexed destinationChainId, address indexed sourceAsset, address destinationAsset, address destinationLedger, bool enabled);
+
+    constructor(address initialOwner, uint256 threshold_) Ownable(initialOwner) {
+        require(initialOwner != address(0) && threshold_ != 0, "Invalid config");
+        threshold = threshold_;
+    }
+
+    function setSigner(address signer, bool enabled) external onlyOwner {
+        require(signer != address(0), "Zero signer");
+        if (isSigner[signer] == enabled) return;
+        if (!enabled) require(signerCount > threshold, "Cannot remove signer at threshold");
+        isSigner[signer] = enabled;
+        if (enabled) signerCount++;
+        else signerCount--;
+        emit SignerUpdated(signer, enabled);
+    }
+
+    function setThreshold(uint256 next) external onlyOwner {
+        require(next != 0 && next <= signerCount, "Invalid threshold");
+        threshold = next;
+        emit ThresholdUpdated(next);
+    }
+
+    function setRoute(
+        uint256 sourceChainId, uint256 destinationChainId,
+        address sourceAsset, address destinationAsset, address destinationLedger, bool enabled
+    ) external onlyOwner {
+        require(sourceChainId != 0 && destinationChainId != 0 && sourceChainId != destinationChainId, "Invalid chains");
+        require(sourceAsset != address(0) && destinationAsset != address(0), "Zero asset");
+        enabledRoute[routeKey(sourceChainId, destinationChainId, sourceAsset, destinationAsset, destinationLedger)] = enabled;
+        emit RouteUpdated(sourceChainId, destinationChainId, sourceAsset, destinationAsset, destinationLedger, enabled);
+    }
+
+    function routeKey(uint256 sourceChainId, uint256 destinationChainId, address sourceAsset, address destinationAsset, address destinationLedger)
+        public pure returns (bytes32)
+    {
+        return keccak256(abi.encode(sourceChainId, destinationChainId, sourceAsset, destinationAsset, destinationLedger));
+    }
+
+    function verifyDelivery(bytes32 transferId, bytes calldata proof)
+        external view override returns (
+            bool valid, uint256 sourceChainId, address sourceAsset, address recipient,
+            address destinationAsset, uint256 amount, address destinationLedger
+        )
+    {
+        uint256 destinationChainId;
+        uint256 deadline;
+        bytes[] memory signatures;
+        (sourceChainId, destinationChainId, sourceAsset, recipient, destinationAsset, destinationLedger, amount, deadline, signatures) =
+            abi.decode(proof, (uint256,uint256,address,address,address,address,uint256,uint256,bytes[]));
+
+        if (
+            transferId == bytes32(0) || sourceChainId == 0 || destinationChainId != block.chainid ||
+            sourceChainId == destinationChainId || sourceAsset == address(0) || recipient == address(0) ||
+            destinationAsset == address(0) || amount == 0 || block.timestamp > deadline ||
+            !enabledRoute[routeKey(sourceChainId, destinationChainId, sourceAsset, destinationAsset, destinationLedger)]
+        ) return (false, sourceChainId, sourceAsset, recipient, destinationAsset, amount, destinationLedger);
+
+        bytes32 structHash = keccak256(abi.encode(
+            DELIVERY_TYPEHASH, transferId, sourceChainId, destinationChainId,
+            sourceAsset, recipient, destinationAsset, destinationLedger, amount, deadline
+        ));
+        valid = _hasQuorum(_digest(structHash), signatures);
+    }
+
+    function verifyRecovery(bytes32 transferId, bytes calldata proof)
+        external view override returns (bool valid, uint256 sourceChainId, address sourceAsset, uint256 amount)
+    {
+        uint256 deadline;
+        bytes[] memory signatures;
+        (sourceChainId, sourceAsset, amount, deadline, signatures) =
+            abi.decode(proof, (uint256,address,uint256,uint256,bytes[]));
+        if (transferId == bytes32(0) || sourceChainId != block.chainid || sourceAsset == address(0) || amount == 0 || block.timestamp > deadline)
+            return (false, sourceChainId, sourceAsset, amount);
+        bytes32 structHash = keccak256(abi.encode(RECOVERY_TYPEHASH, transferId, sourceChainId, sourceAsset, amount, deadline));
+        valid = _hasQuorum(_digest(structHash), signatures);
+    }
+
+    function verifyCancellation(bytes32 transferId, bytes calldata proof) external view override returns (bool) {
+        (uint256 sourceChainId, uint256 deadline, bytes[] memory signatures) =
+            abi.decode(proof, (uint256,uint256,bytes[]));
+        if (transferId == bytes32(0) || sourceChainId != block.chainid || block.timestamp > deadline) return false;
+        return _hasQuorum(_digest(keccak256(abi.encode(CANCEL_TYPEHASH, transferId, sourceChainId, deadline))), signatures);
+    }
+
+    function verifyOutboundSettlement(bytes32 transferId, bytes calldata proof)
+        external view override returns (
+            bool valid, uint256 destinationChainId, address sourceAsset,
+            address destinationAsset, address recipient, uint256 amount
+        )
+    {
+        uint256 sourceChainId;
+        address destinationLedger;
+        uint256 deadline;
+        bytes[] memory signatures;
+        (sourceChainId, destinationChainId, sourceAsset, destinationAsset, recipient, destinationLedger, amount, deadline, signatures) =
+            abi.decode(proof, (uint256,uint256,address,address,address,address,uint256,uint256,bytes[]));
+        if (
+            transferId == bytes32(0) || sourceChainId != block.chainid ||
+            destinationChainId == 0 || destinationChainId == sourceChainId ||
+            sourceAsset == address(0) || destinationAsset == address(0) || recipient == address(0) ||
+            amount == 0 || block.timestamp > deadline ||
+            !enabledRoute[routeKey(sourceChainId, destinationChainId, sourceAsset, destinationAsset, destinationLedger)]
+        ) return (false, destinationChainId, sourceAsset, destinationAsset, recipient, amount);
+
+        bytes32 structHash = keccak256(abi.encode(
+            OUTBOUND_SETTLED_TYPEHASH, transferId, sourceChainId, destinationChainId,
+            sourceAsset, destinationAsset, recipient, destinationLedger, amount, deadline
+        ));
+        valid = _hasQuorum(_digest(structHash), signatures);
+    }
+
+    function _digest(bytes32 structHash) private view returns (bytes32) {
+        bytes32 domain = keccak256(abi.encode(DOMAIN_TYPEHASH, NAME_HASH, VERSION_HASH, block.chainid, address(this)));
+        return keccak256(abi.encodePacked("\x19\x01", domain, structHash));
+    }
+
+    function _hasQuorum(bytes32 digest, bytes[] memory signatures) private view returns (bool) {
+        if (signatures.length < threshold || signatures.length > signerCount) return false;
+        address previous;
+        for (uint256 i; i < signatures.length; ++i) {
+            (address recovered, ECDSA.RecoverError err,) = ECDSA.tryRecover(digest, signatures[i]);
+            if (err != ECDSA.RecoverError.NoError || !isSigner[recovered] || recovered <= previous) return false;
+            previous = recovered;
+        }
+        return true;
+    }
+}
