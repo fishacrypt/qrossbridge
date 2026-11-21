@@ -18,7 +18,8 @@
     "prepare-gateway-adapters": "node --env-file=.env scripts/prepare-gateway-adapters.js",
     "activate-qms-gateway": "node --env-file=.env scripts/activate-qms-gateway.js",
     "configure-uniswap-execution": "node --env-file=.env scripts/configure-uniswap-execution.js",
-    "deploy-gateway-migration": "node --env-file=.env scripts/deploy-gateway-migration.js"
+    "deploy-gateway-migration": "node --env-file=.env scripts/deploy-gateway-migration.js",
+    "upgrade-base-qms-adapter": "node --env-file=.env scripts/upgrade-base-qms-adapter.js"
   },
   "engines": {
     "node": ">=20"
