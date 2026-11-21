@@ -189,7 +189,7 @@ contract QrosQmsBridgeAdapter is QrosSettlementAdapterBase {
         emit SourceLiquidityRefunded(transferId, asset, _outboundAmount(transferId));
     }
 
-    function _outboundAmount(bytes32 transferId) private view returns (uint256 amount) {
+    function _outboundAmount(bytes32 transferId) internal view override returns (uint256 amount) {
         (,,,,amount,,) = ledger.outboundTransfers(transferId);
     }
 

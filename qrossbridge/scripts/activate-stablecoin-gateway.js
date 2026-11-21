@@ -232,7 +232,11 @@ async function main() {
     console.log('Next: fund each adapter with its local stablecoin inventory. Transfers remain unavailable until liquidity is funded.');
     console.log('The QMS/wQMS rail and all legacy Gateway balances were left untouched.');
   } finally {
-    await Promise.all(providers.map(provider => provider.destroy().catch(() => {})));
+    for (const provider of providers) {
+  try {
+    provider.destroy();
+  } catch {}
+}
   }
 }
 

@@ -1,4 +1,4 @@
-# qros Bridge
+# Qros Protocol
 
 Bridge **native QMS** and **WQMS** between QMS Testnet (19480) and:
 
@@ -94,3 +94,9 @@ docs/        REDESIGN.md (audit, design notes, validation)
 ## Stablecoin execution architecture
 
 The next-generation QROS Gateway design is documented in [UNIFIED_GATEWAY_ARCHITECTURE.md](docs/UNIFIED_GATEWAY_ARCHITECTURE.md). It defines persistent user balances, explicit execution authorization, cross-chain settlement adapters, and the planned Uniswap V3 liquidity adapter. This is an architecture specification; it does not mean those integrations are already deployed. The current implementation status and setup boundaries are tracked in [GATEWAY_IMPLEMENTATION.md](docs/GATEWAY_IMPLEMENTATION.md).
+
+## Documentation
+
+- [Gateway implementation and testnet status](docs/GATEWAY_IMPLEMENTATION.md)
+- [Unified Gateway architecture](docs/UNIFIED_GATEWAY_ARCHITECTURE.md)
+- [Gateway implementation guide](docs/GATEWAY_IMPLEMENTATION.md)
