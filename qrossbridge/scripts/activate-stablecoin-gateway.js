@@ -192,12 +192,19 @@ async function main() {
         await send(chains[sourceId].name + ' enable outbound stablecoin route to ' + chains[destinationId].name,
           source.adapter.setOutboundRoute(source.asset, destinationId, destination.asset, true));
       }
-      const routeKey = await destination.verifier.routeKey(
-        sourceId, destinationId, source.asset, destination.asset, destination.ledgerAddress
-      );
-      if (!await destination.verifier.enabledRoute(routeKey)) {
-        await send(chains[destinationId].name + ' enable inbound stablecoin proof route from ' + chains[sourceId].name,
-          destination.verifier.setRoute(sourceId, destinationId, source.asset, destination.asset, destination.ledgerAddress, true));
+      // Delivery is verified on the destination chain; source escrow release is
+      // independently verified on the source chain. Both verifier instances need
+      // the exact same route tuple for their respective EIP-712 proof types.
+      for (const verifierContext of [source, destination]) {
+        const routeKey = await verifierContext.verifier.routeKey(
+          sourceId, destinationId, source.asset, destination.asset, destination.ledgerAddress
+        );
+        if (!await verifierContext.verifier.enabledRoute(routeKey)) {
+          await send(chains[verifierContext.id].name + ' enable stablecoin proof route ' +
+            sourceId + ' -> ' + destinationId,
+            verifierContext.verifier.setRoute(sourceId, destinationId, source.asset,
+              destination.asset, destination.ledgerAddress, true));
+        }
       }
     }
 
