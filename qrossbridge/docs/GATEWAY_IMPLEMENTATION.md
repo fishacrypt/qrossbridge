@@ -390,3 +390,42 @@ A dedicated Hub/Spoke integration now exists in `contracts/adapters/QrosQmsBridg
 The QMS-specific verifier (`QrosQmsBridgeAttestationVerifier`) binds the source and destination Hub/Spoke endpoints, source and destination Gateway adapter addresses, token addresses, beneficiary, amount and the bridge's nonce-derived message ID. The validator quorum must independently verify the source `Bridged` event and destination `processed` state/token receipt. The existing bridge relayer remains a trusted transaction submitter; the validator quorum is an additional disclosed trust assumption, not a light client.
 
 This adapter supports QMS Hub <-> remote Spoke routes, not direct spoke-to-spoke transfers. Post-dispatch recovery is not automatic: the exact wQMS must first be returned to the source adapter through a separately authorized recovery operation. See `docs/QMS_WQMS_GATEWAY_ADAPTER.md` for route configuration and operational details.
+
+## Testnet implementation status
+
+The unified Gateway has been deployed and configured on QMS Testnet (chain ID 19480) and Base Sepolia (chain ID 84532).
+
+### Deployed components
+
+| Component | Network | Address |
+|---|---|---|
+| Gateway Ledger | QMS Testnet | `0xbAe53eb7A08Fd4eeAA62BA0d2B22E3E8060718d3` |
+| Transfer Coordinator | QMS Testnet | `0x4CB36358a0Fb51f5C9e2072396Fad9b7b53003f0` |
+| Settlement Verifier | QMS Testnet | `0x5599158c957c9D84A8a5401FCFbB61aC87767f1D` |
+| Stablecoin Adapter | QMS Testnet | `0xc99808Da32c2AC22Dd44d1fcED689846AFEb919B` |
+| Gateway Ledger | Base Sepolia | `0xA298a68b7b588ae2dbB1e50DD89540687EE8A65C` |
+| Transfer Coordinator | Base Sepolia | `0x71f319B319616bCA5B6A1dCa0b2A1877938fE7Ec` |
+| Settlement Verifier | Base Sepolia | `0xd8eA01bA9938Cd97EA892b11597BEf9C34c4677f` |
+| Stablecoin Adapter | Base Sepolia | `0x84954e5B607d767Dbd048aeE5c32bcB55a0F3011` |
+
+QROS test USDT on QMS Testnet: `0x258cE7483f37363a7E6EE94f10b918b1f88581B1`
+
+Base Sepolia test USDT: `0x9Bb95Ad4f02266C44728e54CEe8ab8E70aAe2683`
+
+Both stablecoin adapters were funded with 10 test USDT, and QMS-to-Base and Base-to-QMS routes were enabled.
+
+### Architecture and trust assumptions
+
+The Gateway maintains user balances in its ledger. Depositing funds does not automatically create a DeFi position. A DeFi strategy is executed only when the user explicitly selects and authorizes it.
+
+Cross-chain settlement uses validator-attested transfers and prefunded destination liquidity. This is a testnet trust model, not a trustless light-client bridge or an issuer-native stablecoin burn-and-mint system. The configured validator set is project-controlled and should not be represented as an independent validator network.
+
+### Verification status and limitations
+
+The Solidity contracts compile successfully with Foundry.
+
+The stablecoin adapters, asset configuration, liquidity funding, and bidirectional route configuration have been verified on the two test networks.
+
+A first 1 USDT QMS-to-Base test reached source-side finalization and dispatch. Destination-side quorum attestation and settlement remain pending. This test must not be described as a completed end-to-end transfer.
+
+All listed token deployments are testnet assets with no real-world monetary value.

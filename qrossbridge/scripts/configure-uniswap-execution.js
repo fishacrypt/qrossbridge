@@ -9,7 +9,10 @@ const { ethers } = require('ethers');
 const { chains, rpcFor } = require('./chains');
 
 const ROOT = path.join(__dirname, '..');
-const CORE_FILE = path.join(ROOT, 'gateway-core-deployments.json');
+const MIGRATION_CORE_FILE = path.join(ROOT, 'gateway-migration-deployments.json');
+const CORE_FILE = fs.existsSync(MIGRATION_CORE_FILE)
+  ? MIGRATION_CORE_FILE
+  : path.join(ROOT, 'gateway-core-deployments.json');
 const CONFIG_FILE = path.join(ROOT, 'uniswap-execution.config.json');
 const OUTPUT_FILE = path.join(ROOT, 'uniswap-execution-deployments.json');
 

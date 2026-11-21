@@ -9,11 +9,14 @@ const { ethers } = require('ethers');
 const { chains, rpcFor, HUB_ID } = require('./chains');
 
 const ROOT = path.join(__dirname, '..');
-const CORE_FILE = path.join(ROOT, 'gateway-core-deployments.json');
+const MIGRATION_CORE_FILE = path.join(ROOT, 'gateway-migration-deployments.json');
+const MIGRATION_PREP_FILE = path.join(ROOT, 'gateway-migration-adapter-preparations.json');
+const USE_MIGRATION = fs.existsSync(MIGRATION_CORE_FILE) && fs.existsSync(MIGRATION_PREP_FILE);
+const CORE_FILE = USE_MIGRATION ? MIGRATION_CORE_FILE : path.join(ROOT, 'gateway-core-deployments.json');
 const BRIDGE_FILE = path.join(ROOT, 'deployments.json');
-const PREP_FILE = path.join(ROOT, 'gateway-adapter-preparations.json');
+const PREP_FILE = USE_MIGRATION ? MIGRATION_PREP_FILE : path.join(ROOT, 'gateway-adapter-preparations.json');
 const VALIDATOR_FILE = path.join(ROOT, 'gateway-validator.config.json');
-const OUTPUT_FILE = path.join(ROOT, 'gateway-adapter-activations.json');
+const OUTPUT_FILE = path.join(ROOT, USE_MIGRATION ? 'gateway-migration-activations.json' : 'gateway-adapter-activations.json');
 
 function readJson(file) {
   if (!fs.existsSync(file)) throw new Error('Missing ' + path.basename(file));
@@ -199,9 +202,16 @@ async function main() {
   await ensureBool('enable Base Sepolia on QMS Hub bridge',
     () => hub.bridge.supportedChain(84532),
     () => hub.bridge.setChainSupport(84532, true));
-  await ensureBool('authorize Base QMS Gateway adapter on Spoke bridge',
-    () => base.bridge.gatewayAdapters(base.adapterAddress),
-    () => base.bridge.setGatewayAdapter(base.adapterAddress, true));
+  // The deployed Base Spoke predates gatewayAdapters(). If it exposes the allowlist,
+  // authorize the adapter normally. Otherwise the upgraded adapter uses legacy bridgeBack(),
+  // which burns the wQMS it holds and does not require changing/replacing the live Spoke.
+  try {
+    await ensureBool('authorize Base QMS Gateway adapter on Spoke bridge',
+      () => base.bridge.gatewayAdapters(base.adapterAddress),
+      () => base.bridge.setGatewayAdapter(base.adapterAddress, true));
+  } catch (error) {
+    console.log('  Base Spoke has no gatewayAdapters() getter; using backward-compatible bridgeBack() path.');
+  }
 
   // Configure both directions. Destination verifiers accept only exact endpoint tuples.
   for (const sourceId of [HUB_ID, 84532]) {
@@ -214,8 +224,15 @@ async function main() {
         same(remote.token, destination.tokenAddress) && same(remote.adapter, destination.adapterAddress) &&
         same(remote.gatewayLedger, destination.ledgerAddress);
       if (!routeMatches) {
-        if (remote.enabled) throw new Error('Existing remote adapter route ' + sourceId + ' -> ' + destinationId + ' differs; refusing to overwrite.');
-        await send('configure QMS adapter route ' + sourceId + ' -> ' + destinationId,
+        const safeAdapterUpgrade = remote.enabled &&
+          same(remote.bridge, destination.bridgeAddress) &&
+          same(remote.token, destination.tokenAddress) &&
+          same(remote.gatewayLedger, destination.ledgerAddress) &&
+          same(remote.adapter, prepared.chains?.[String(destinationId)]?.previousQmsBridgeAdapter);
+        if (remote.enabled && !safeAdapterUpgrade) {
+          throw new Error('Existing remote adapter route ' + sourceId + ' -> ' + destinationId + ' differs beyond the recorded adapter upgrade; refusing to overwrite.');
+        }
+        await send((safeAdapterUpgrade ? 'upgrade' : 'configure') + ' QMS adapter route ' + sourceId + ' -> ' + destinationId,
           source.adapter.setRemoteRoute(destinationId, destination.bridgeAddress, destination.tokenAddress,
             destination.adapterAddress, destination.ledgerAddress, true));
       }

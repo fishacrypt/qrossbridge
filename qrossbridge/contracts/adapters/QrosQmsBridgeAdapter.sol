@@ -13,6 +13,9 @@ interface IQmsSpokeGateway {
     function bridgeBackFor(address holder, uint256 amount, address recipient, bool asNative) external;
     function token() external view returns (address);
 }
+interface IQmsSpokeLegacyGateway {
+    function bridgeBack(uint256 amount, address recipient, bool asNative) external;
+}
 /// @notice Gateway adapter for the existing QMS Hub <-> remote wQMS Spoke bridge.
 /// @dev Requires independent quorum attestations of the source Bridged event AND destination processed/minted/released state.
 ///      This is a trusted-validator integration, not a trustless cross-chain light client.
@@ -109,7 +112,14 @@ contract QrosQmsBridgeAdapter is QrosSettlementAdapterBase {
             IQmsHubGateway(hubBridge).depositWQMS(amount, destinationChainId, route.adapter);
         } else {
             require(localBridge != hubBridge && asset == localToken, "Invalid spoke-side adapter configuration");
-            IQmsSpokeGateway(localBridge).bridgeBackFor(address(this), amount, route.adapter, false);
+            // Newer Spokes require adapter allowlisting. Older deployed Spokes expose only
+            // bridgeBack(), which burns the wQMS held by this adapter and preserves the
+            // standard Bridged event. Fall back only when bridgeBackFor is unavailable/reverts.
+            try IQmsSpokeGateway(localBridge).bridgeBackFor(address(this), amount, route.adapter, false) {
+                // New Spoke path.
+            } catch {
+                IQmsSpokeLegacyGateway(localBridge).bridgeBack(amount, route.adapter, false);
+            }
         }
         bridgeMessageId = keccak256(abi.encode(block.chainid, nonceBefore + 1));
         outboundBridgeMessageId[transferId] = bridgeMessageId;
@@ -179,7 +189,7 @@ contract QrosQmsBridgeAdapter is QrosSettlementAdapterBase {
         emit SourceLiquidityRefunded(transferId, asset, _outboundAmount(transferId));
     }
 
-    function _outboundAmount(bytes32 transferId) private view returns (uint256 amount) {
+    function _outboundAmount(bytes32 transferId) internal view override returns (uint256 amount) {
         (,,,,amount,,) = ledger.outboundTransfers(transferId);
     }
 
