@@ -9,11 +9,14 @@ const { ethers } = require('ethers');
 const { chains, rpcFor, HUB_ID } = require('./chains');
 
 const ROOT = path.join(__dirname, '..');
-const CORE_FILE = path.join(ROOT, 'gateway-core-deployments.json');
+const MIGRATION_CORE_FILE = path.join(ROOT, 'gateway-migration-deployments.json');
+const MIGRATION_PREP_FILE = path.join(ROOT, 'gateway-migration-adapter-preparations.json');
+const USE_MIGRATION = fs.existsSync(MIGRATION_CORE_FILE) && fs.existsSync(MIGRATION_PREP_FILE);
+const CORE_FILE = USE_MIGRATION ? MIGRATION_CORE_FILE : path.join(ROOT, 'gateway-core-deployments.json');
 const BRIDGE_FILE = path.join(ROOT, 'deployments.json');
-const PREP_FILE = path.join(ROOT, 'gateway-adapter-preparations.json');
+const PREP_FILE = USE_MIGRATION ? MIGRATION_PREP_FILE : path.join(ROOT, 'gateway-adapter-preparations.json');
 const VALIDATOR_FILE = path.join(ROOT, 'gateway-validator.config.json');
-const OUTPUT_FILE = path.join(ROOT, 'gateway-adapter-activations.json');
+const OUTPUT_FILE = path.join(ROOT, USE_MIGRATION ? 'gateway-migration-activations.json' : 'gateway-adapter-activations.json');
 
 function readJson(file) {
   if (!fs.existsSync(file)) throw new Error('Missing ' + path.basename(file));
