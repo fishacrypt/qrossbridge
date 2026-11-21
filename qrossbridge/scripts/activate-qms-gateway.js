@@ -202,9 +202,16 @@ async function main() {
   await ensureBool('enable Base Sepolia on QMS Hub bridge',
     () => hub.bridge.supportedChain(84532),
     () => hub.bridge.setChainSupport(84532, true));
-  await ensureBool('authorize Base QMS Gateway adapter on Spoke bridge',
-    () => base.bridge.gatewayAdapters(base.adapterAddress),
-    () => base.bridge.setGatewayAdapter(base.adapterAddress, true));
+  // The deployed Base Spoke predates gatewayAdapters(). If it exposes the allowlist,
+  // authorize the adapter normally. Otherwise the upgraded adapter uses legacy bridgeBack(),
+  // which burns the wQMS it holds and does not require changing/replacing the live Spoke.
+  try {
+    await ensureBool('authorize Base QMS Gateway adapter on Spoke bridge',
+      () => base.bridge.gatewayAdapters(base.adapterAddress),
+      () => base.bridge.setGatewayAdapter(base.adapterAddress, true));
+  } catch (error) {
+    console.log('  Base Spoke has no gatewayAdapters() getter; using backward-compatible bridgeBack() path.');
+  }
 
   // Configure both directions. Destination verifiers accept only exact endpoint tuples.
   for (const sourceId of [HUB_ID, 84532]) {
@@ -217,8 +224,15 @@ async function main() {
         same(remote.token, destination.tokenAddress) && same(remote.adapter, destination.adapterAddress) &&
         same(remote.gatewayLedger, destination.ledgerAddress);
       if (!routeMatches) {
-        if (remote.enabled) throw new Error('Existing remote adapter route ' + sourceId + ' -> ' + destinationId + ' differs; refusing to overwrite.');
-        await send('configure QMS adapter route ' + sourceId + ' -> ' + destinationId,
+        const safeAdapterUpgrade = remote.enabled &&
+          same(remote.bridge, destination.bridgeAddress) &&
+          same(remote.token, destination.tokenAddress) &&
+          same(remote.gatewayLedger, destination.ledgerAddress) &&
+          same(remote.adapter, prepared.chains?.[String(destinationId)]?.previousQmsBridgeAdapter);
+        if (remote.enabled && !safeAdapterUpgrade) {
+          throw new Error('Existing remote adapter route ' + sourceId + ' -> ' + destinationId + ' differs beyond the recorded adapter upgrade; refusing to overwrite.');
+        }
+        await send((safeAdapterUpgrade ? 'upgrade' : 'configure') + ' QMS adapter route ' + sourceId + ' -> ' + destinationId,
           source.adapter.setRemoteRoute(destinationId, destination.bridgeAddress, destination.tokenAddress,
             destination.adapterAddress, destination.ledgerAddress, true));
       }
