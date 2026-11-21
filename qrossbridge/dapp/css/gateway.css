@@ -37,3 +37,12 @@
 #gatewayTransferHistory{display:grid;gap:8px;margin-top:12px}
 #gatewayTransferHistory .gateway-asset{grid-template-columns:minmax(0,.7fr) minmax(0,1fr) minmax(0,1.4fr)}
 #gatewayTransferHistory .gateway-asset span{text-align:left;white-space:normal}
+
+/* Keep the Gateway dashboard comfortably inset from the viewport edges. */
+#view-gateway{
+  padding-inline:clamp(18px,3.5vw,44px);
+  box-sizing:border-box;
+}
+@media(max-width:560px){
+  #view-gateway{padding-inline:16px}
+}
