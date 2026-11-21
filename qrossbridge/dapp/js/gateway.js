@@ -1,5 +1,5 @@
 'use strict';
-/* QROS Gateway dashboard. Read-only until verified deployment config is supplied. */
+/* QROS Gateway dashboard. Contract reads and wallet actions use the verified testnet deployment config. */
 (function(){
   const ABI=[
     'function getBalance(address user,address asset) view returns (uint256 available,uint256 inTransit,uint256 reserved,uint256 deployed)',
@@ -232,7 +232,7 @@
       }
       set('gatewayTotal',items.length+' configured assets');
       if(items.length===1&&firstBalances){['available','inTransit','reserved','deployed'].forEach((k,i)=>{const el=document.querySelector('[data-gateway-metric="'+k+'"]');if(el)el.textContent=fmt(firstBalances[i],Number(items[0].decimals??6))+' '+(items[0].symbol||'')})}
-      status('Ledger connected · read-only','ready');
+      status('Ledger connected · testnet actions enabled','ready');
     }catch(e){status('Unable to read Gateway ledger','error');const m=$g('gatewayMessage');if(m)m.textContent=e?.shortMessage||e?.message||'RPC read failed'}
     finally{busy=false}
   }
