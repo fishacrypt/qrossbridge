@@ -93,12 +93,12 @@ async function main() {
       existingGatewayManifestPreserved: true,
       existingLedgersUntouched: true,
       existingBalancesNotMigrated: true,
-      noAssetsOrAdaptersActivated: true,
+      noValidatorsOrProofRoutesActivated: true,
       cutoverAuthorized: false
     },
     notes: [
       'Replacement contracts only. Existing Gateway contracts and user balances remain untouched.',
-      'No validators, routes, settlement adapters, coordinator approvals, or execution strategies are enabled.',
+      'Safe wQMS custody, asset-specific adapter assignment, coordinator approval, and Base execution-router linkage are applied only to replacement contracts. No validators, proof routes, or execution strategies are enabled.',
       'Do not direct users to replacement ledgers until a separately reviewed cutover and balance migration is completed.'
     ]
   };
